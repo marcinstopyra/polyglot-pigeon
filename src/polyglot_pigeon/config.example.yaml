@@ -1,0 +1,17 @@
+source_email:
+  address: polyglot@pigeon.com
+  app_password: app_password
+llm:
+  provider: perplexity
+  api_key: my_llm_api_key
+  model: NULL
+language:
+  target: german
+  level: b1
+target_email:
+  address: target@gmail.com
+  smtp_server: smtp_server
+  smtp_port: 123
+  smtp_user: smtp_user
+  smtp_password: smtp_password
+  

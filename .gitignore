@@ -3,3 +3,5 @@ local_files/
 .env
 .ruff_cache
 __pycache__/
+config.yaml
+.vscode/
