@@ -73,10 +73,29 @@ poetry run python src/polyglot_pigeon/main.py -c config.yaml [-v]
 
 **Source layout:** `src/polyglot_pigeon/`
 
-- **main.py** - CLI entry point with argument parsing (`-c/--config` required, `-v/--verbose` optional)
-- **config.py** - Singleton `ConfigLoader` class for YAML configuration loading with caching and reload support
-- **models/models.py** - `MyBaseModel` extending Pydantic BaseModel with custom enum parsing (case-insensitive) and serialization
-- **models/configurations.py** - All configuration dataclasses: `SourceEmailConfig`, `TargetEmailConfig`, `LLMConfig`, `LanguageConfig`, `ScheduleConfig`, `LoggingConfig`
+The project follows a **simple modules pattern** - code is organized by feature/domain rather than technical layers:
+
+```
+src/polyglot_pigeon/
+├── email/           # Email handling (IMAP reading, SMTP sending)
+│   ├── __init__.py
+│   └── reader.py    # EmailReader class
+├── models/          # Pydantic data models
+│   ├── models.py    # Base models (MyBaseModel, Email)
+│   └── configurations.py  # Config models
+├── config.py        # ConfigLoader singleton
+└── main.py          # CLI entry point
+```
+
+**Future modules** should follow the same pattern:
+- `llm/` - LLM API integrations (Claude, Perplexity, OpenAI)
+- `scheduler/` - Email processing scheduler
+
+**Core components:**
+- **config.py** - Singleton `ConfigLoader` for YAML configuration with caching and reload
+- **models/models.py** - `MyBaseModel` with custom enum parsing (case-insensitive) and serialization; `Email` model for email data
+- **models/configurations.py** - All config dataclasses: `SourceEmailConfig`, `TargetEmailConfig`, `LLMConfig`, `LanguageConfig`, `ScheduleConfig`, `LoggingConfig`
+- **email/reader.py** - `EmailReader` class for IMAP operations (fetch, mark as read, add labels)
 
 **Configuration:** Copy `src/polyglot_pigeon/config.example.yaml` to `config.yaml` (gitignored) for local development.
 

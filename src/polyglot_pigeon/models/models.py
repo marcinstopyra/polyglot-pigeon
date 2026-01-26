@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -63,3 +64,14 @@ class MyBaseModel(BaseModel):
             return type(obj)(cls._convert_values(item) for item in obj)
         else:
             return obj
+
+
+class Email(MyBaseModel):
+    """Represents an email message."""
+
+    uid: str
+    subject: str
+    sender: str
+    date: datetime
+    body_text: str
+    body_html: str | None = None
