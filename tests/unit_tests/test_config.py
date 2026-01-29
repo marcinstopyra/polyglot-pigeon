@@ -48,6 +48,7 @@ def test_full_config():
             "level": "INFO",
         },
         "schedule": {
+            "enabled": True,
             "time": "12:00",
             "timezone": "UTC",
         },

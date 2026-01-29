@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from polyglot_pigeon.config import ConfigLoader
-from polyglot_pigeon.email import EmailReader
+from polyglot_pigeon.mail import EmailReader
 
 
 def setup_logging(verbose: bool = False) -> None:

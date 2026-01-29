@@ -174,26 +174,29 @@ class EmailReader:
         except (LookupError, UnicodeDecodeError):
             return payload.decode("utf-8", errors="replace")
 
-    def mark_as_read(self, uids: list[str]) -> None:
+    def mark_as_read(self, uids: list[str], folder: str = "INBOX") -> None:
         """Mark emails as read (add SEEN flag)."""
         if not self._connection:
             raise RuntimeError("Not connected to IMAP server.")
 
+        self._connection.select(folder)
         for uid in uids:
             self._connection.store(uid.encode(), "+FLAGS", "\\Seen")
             logger.debug(f"Marked email {uid} as read")
 
-    def add_label(self, uids: list[str], label: str) -> None:
+    def add_label(self, uids: list[str], label: str, folder: str = "INBOX") -> None:
         """
         Add a label/tag to emails (Gmail-specific).
 
         Args:
             uids: List of email UIDs
             label: Label name to add (e.g., "Processed")
+            folder: IMAP folder to select (default: INBOX)
         """
         if not self._connection:
             raise RuntimeError("Not connected to IMAP server.")
 
+        self._connection.select(folder)
         for uid in uids:
             try:
                 self._connection.store(uid.encode(), "+X-GM-LABELS", f'"{label}"')

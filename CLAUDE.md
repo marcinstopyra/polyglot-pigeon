@@ -77,9 +77,17 @@ The project follows a **simple modules pattern** - code is organized by feature/
 
 ```
 src/polyglot_pigeon/
-├── email/           # Email handling (IMAP reading, SMTP sending)
-│   ├── __init__.py
+├── mail/            # Email handling (IMAP reading, SMTP sending)
+│   ├── __init__.py  # Note: named 'mail' to avoid collision with stdlib 'email'
 │   └── reader.py    # EmailReader class
+├── llm/             # LLM API integrations
+│   ├── __init__.py
+│   ├── client.py    # LLMClient ABC + Claude/OpenAI/Perplexity clients
+│   └── models.py    # LLMMessage, LLMResponse models
+├── scheduler/       # Email processing scheduler
+│   ├── __init__.py
+│   ├── scheduler.py # EmailScheduler class
+│   └── pipeline.py  # Pipeline ABC + processing implementations
 ├── models/          # Pydantic data models
 │   ├── models.py    # Base models (MyBaseModel, Email)
 │   └── configurations.py  # Config models
@@ -87,15 +95,14 @@ src/polyglot_pigeon/
 └── main.py          # CLI entry point
 ```
 
-**Future modules** should follow the same pattern:
-- `llm/` - LLM API integrations (Claude, Perplexity, OpenAI)
-- `scheduler/` - Email processing scheduler
-
 **Core components:**
 - **config.py** - Singleton `ConfigLoader` for YAML configuration with caching and reload
 - **models/models.py** - `MyBaseModel` with custom enum parsing (case-insensitive) and serialization; `Email` model for email data
 - **models/configurations.py** - All config dataclasses: `SourceEmailConfig`, `TargetEmailConfig`, `LLMConfig`, `LanguageConfig`, `ScheduleConfig`, `LoggingConfig`
-- **email/reader.py** - `EmailReader` class for IMAP operations (fetch, mark as read, add labels)
+- **mail/reader.py** - `EmailReader` class for IMAP operations (fetch, mark as read, add labels)
+- **llm/client.py** - `LLMClient` ABC with `ClaudeClient`, `OpenAIClient`, `PerplexityClient` implementations
+- **scheduler/scheduler.py** - `EmailScheduler` for cron-like scheduled email processing
+- **scheduler/pipeline.py** - `Pipeline` ABC for email processing workflows
 
 **Configuration:** Copy `src/polyglot_pigeon/config.example.yaml` to `config.yaml` (gitignored) for local development.
 

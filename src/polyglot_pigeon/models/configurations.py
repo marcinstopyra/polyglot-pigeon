@@ -62,6 +62,7 @@ class TargetEmailConfig(MyBaseModel):
 class ScheduleConfig(MyBaseModel):
     time: str = "12:00"
     timezone: str = "UTC"
+    enabled: bool = True
 
 
 class LoggingConfig(MyBaseModel):
