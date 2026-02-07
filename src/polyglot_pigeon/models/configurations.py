@@ -57,6 +57,12 @@ class TargetEmailConfig(MyBaseModel):
     smtp_user: str
     smtp_password: str
     sender_name: str = "Polyglot Pigeon"
+    retry_count: int = Field(
+        default=3, description="Number of retry attempts on network timeout"
+    )
+    retry_delay: float = Field(
+        default=300.0, description="Delay between retry attempts in seconds"
+    )
 
 
 class ScheduleConfig(MyBaseModel):

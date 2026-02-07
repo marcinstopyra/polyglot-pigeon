@@ -67,6 +67,8 @@ def test_full_config():
             "smtp_port": 587,
             "smtp_server": "smtp.gmail.com",
             "smtp_user": "user@example.com",
+            "retry_count": 3,
+            "retry_delay": 300.0,
         },
     }
 
