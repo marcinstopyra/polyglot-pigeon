@@ -106,6 +106,7 @@ class TestEmailScheduler:
                 api_key="test-api-key",
             ),
             language=LanguageConfig(
+                known=Language.ENGLISH,
                 target=Language.GERMAN,
                 level=LanguageLevel.B1,
             ),

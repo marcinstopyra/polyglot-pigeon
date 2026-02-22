@@ -46,6 +46,7 @@ class LanguageLevel(Enum):
 
 
 class LanguageConfig(MyBaseModel):
+    known: Language
     target: Language
     level: LanguageLevel
 

@@ -22,7 +22,7 @@ def test_full_config():
             address="source@example.com", app_password="secret123"
         ),
         llm=LLMConfig(provider="claude", api_key="sk-test"),
-        language=LanguageConfig(target="German", level="b2"),  # Test different cases
+        language=LanguageConfig(known="English", target="German", level="b2"),
         target_email=TargetEmailConfig(
             address="target@example.com",
             smtp_server="smtp.gmail.com",
@@ -33,6 +33,7 @@ def test_full_config():
     )
     assert config.model_dump() == {
         "language": {
+            "known": "english",
             "level": "b2",
             "target": "german",
         },
@@ -103,7 +104,7 @@ class TestConfigLoader:
                 "max_tokens": 4096,
                 "temperature": 0.7,
             },
-            "language": {"target": "german", "level": "b2"},
+            "language": {"known": "english", "target": "german", "level": "b2"},
             "target_email": {
                 "address": "target@example.com",
                 "smtp_server": "smtp.gmail.com",
@@ -243,7 +244,7 @@ class TestConfigLoader:
                 "app_password": "secret123",
             },
             "llm": {"provider": "clAUde", "api_key": "sk-test"},
-            "language": {"target": "German", "level": "b2"},
+            "language": {"known": "English", "target": "German", "level": "b2"},
             "target_email": {
                 "address": "target@example.com",
                 "smtp_server": "smtp.gmail.com",

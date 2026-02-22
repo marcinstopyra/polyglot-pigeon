@@ -6,6 +6,7 @@ llm:
   api_key: my_llm_api_key
   model: NULL
 language:
+  known: english
   target: german
   level: b1
 target_email:
