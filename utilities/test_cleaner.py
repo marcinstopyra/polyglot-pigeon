@@ -62,6 +62,11 @@ def main() -> None:
         help="Directory to save cleaned .md file (default: current directory)",
     )
     parser.add_argument(
+        "--save-raw",
+        action="store_true",
+        help="Also save the original email body alongside the cleaned output",
+    )
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable verbose logging",
@@ -145,11 +150,22 @@ def main() -> None:
 
         today = date.today().isoformat()
         short_id = uuid.uuid4().hex[:8]
-        filename = f"cleaned_email_{today}_{short_id}.md"
-        filepath = output_dir / filename
+        base = f"email_{today}_{short_id}"
 
-        filepath.write_text(output)
-        print(f"Saved to: {filepath}\n")
+        cleaned_path = output_dir / f"{base}_cleaned.md"
+        cleaned_path.write_text(output)
+        print(f"  Cleaned → {cleaned_path}")
+
+        if args.save_raw:
+            if selected.body_html:
+                raw_path = output_dir / f"{base}_original.html"
+                raw_path.write_text(selected.body_html)
+            else:
+                raw_path = output_dir / f"{base}_original.txt"
+                raw_path.write_text(selected.body_text or "")
+            print(f"  Original → {raw_path}")
+
+        print()
 
 
 if __name__ == "__main__":
