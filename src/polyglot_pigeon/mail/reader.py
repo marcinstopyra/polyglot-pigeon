@@ -106,7 +106,7 @@ class EmailReader:
     def _fetch_single_email(self, uid: bytes) -> Email | None:
         """Fetch and parse a single email by UID."""
         try:
-            status, msg_data = self._connection.fetch(uid, "(RFC822)")
+            status, msg_data = self._connection.fetch(uid, "(BODY.PEEK[])") # emails are not marked as "read" then
             if status != "OK" or not msg_data or not msg_data[0]:
                 return None
 
