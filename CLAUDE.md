@@ -47,7 +47,8 @@ When I correct a mistake or point out an issue:
 
 This file should grow over time as we work together.
 ### Learned Rules
-...
+
+- **Prefer Pydantic models or dataclasses for complex data** — avoid tuples or plain dicts when passing structured data between functions. Use `MyBaseModel` (Pydantic) when validation or serialization is needed; use `@dataclass` for lightweight internal structures.
 
 ## Project Overview
 

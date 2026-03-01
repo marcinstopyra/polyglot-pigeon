@@ -9,7 +9,6 @@ Usage:
 """
 
 import argparse
-import json
 import logging
 import sys
 import uuid
@@ -20,17 +19,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from polyglot_pigeon.config import ConfigLoader
-from polyglot_pigeon.content import ContentCleaner
-from polyglot_pigeon.llm import create_llm_client
-from polyglot_pigeon.llm.models import LLMMessage, MessageRole
-from polyglot_pigeon.mail import EmailReader, EmailSender
-from polyglot_pigeon.models.models import TargetEmailContent
-from polyglot_pigeon.prompts import PromptManager
-from polyglot_pigeon.scheduler.pipeline import (
-    _parse_json_with_retry,
-    _render_html,
-    _render_text,
-)
+from polyglot_pigeon.mail import EmailReader
+from polyglot_pigeon.scheduler.pipeline import EmailProcessingPipeline
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -171,75 +161,16 @@ def main() -> None:
             break
         print()
 
-    # Step 1: Clean
-    print("\nCleaning emails...")
-    cleaned = ContentCleaner().clean(selected)
-    if not cleaned:
-        print("No content remained after cleaning. Exiting.")
-        return
-    print(f"  {len(cleaned)}/{len(selected)} email(s) had content after cleaning.")
-
-    # Step 2: Format combined content for LLM
-    content_parts = [
-        f"Subject: {e.subject}\nFrom: {e.sender}\n\n{e.body}" for e in cleaned
-    ]
-    combined_content = "\n\n---\n\n".join(content_parts)
-
-    # Step 3: Build prompts
-    lang = config.language
-    known_language = lang.known.name.title()
-    target_language = lang.target.name.title()
-    level = lang.level.name
-
-    prompts = PromptManager()
-    language_extra = prompts.get("language_extra")
-    article_structure_extra = prompts.get("article_structure_extra")
-    json_schema = json.dumps(TargetEmailContent.model_json_schema(), indent=2)
-
-    system_prompt = prompts.get(
-        "system",
-        known_language=known_language,
-        target_language=target_language,
-        level=level,
-        language_extra=language_extra,
-        article_structure_extra=article_structure_extra,
-        json_schema=json_schema,
-    )
-    user_prompt = prompts.get("transform_user", content=combined_content)
-    fix_prompt = prompts.get("json_fix", json_schema=json_schema)
-
-    # Step 4: LLM call — transform content to structured learning material
-    print("\nTransforming content via LLM...")
-    llm_client = create_llm_client(config.llm)
-    messages = [
-        LLMMessage(role=MessageRole.SYSTEM, content=system_prompt),
-        LLMMessage(role=MessageRole.USER, content=user_prompt),
-    ]
+    # Build digest
+    print("\nBuilding digest...")
+    pipeline = EmailProcessingPipeline()
     try:
-        transform_response = llm_client.complete(messages)
+        digest = pipeline.build_digest(selected)
     except Exception as e:
-        print(f"LLM transform call failed: {e}")
+        print(f"Failed to build digest: {e}")
         sys.exit(1)
 
-    # Step 5: Parse JSON response with retry
-    print("Parsing response...")
-    try:
-        digest = _parse_json_with_retry(
-            raw=transform_response.content,
-            llm_client=llm_client,
-            original_messages=messages,
-            fix_prompt=fix_prompt,
-        )
-    except ValueError as e:
-        print(f"Failed to parse LLM response: {e}")
-        sys.exit(1)
-
-    # Step 6: Render
-    body_text = _render_text(digest)
-    body_html = _render_html(digest)
-    subject = f"Your {target_language} learning digest"
-
-    # Step 7: Send or save
+    # Send or save
     if args.dry_run:
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -248,25 +179,18 @@ def main() -> None:
         stem = f"pipeline_{today}_{short_id}"
         txt_path = output_dir / f"{stem}.txt"
         html_path = output_dir / f"{stem}.html"
-        txt_path.write_text(f"{subject}\n\n{body_text}")
-        html_path.write_text(body_html)
+        txt_path.write_text(f"{digest.subject}\n\n{digest.body_text}")
+        html_path.write_text(digest.body_html)
         print(f"\nDry run — digest saved to:")
         print(f"  {txt_path}")
         print(f"  {html_path}")
     else:
         print(f"\nSending digest to {config.target_email.address}...")
-        try:
-            with EmailSender(config.target_email) as sender:
-                sender.send(
-                    to=config.target_email.address,
-                    subject=subject,
-                    body_text=body_text,
-                    body_html=body_html,
-                )
-            print("Email sent successfully.")
-        except Exception as e:
-            print(f"Failed to send email: {e}")
+        result = pipeline.send_target_email(digest)
+        if result.errors:
+            print(f"Failed to send email: {result.errors[0]}")
             sys.exit(1)
+        print("Email sent successfully.")
 
 
 if __name__ == "__main__":
