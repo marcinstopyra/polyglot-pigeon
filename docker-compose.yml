@@ -1,0 +1,7 @@
+services:
+  polyglot-pigeon:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro   # credentials never baked into image
+      - ./logs:/app/logs                    # persist logs on host
