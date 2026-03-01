@@ -13,8 +13,7 @@ class TestPromptManager:
 
         assert "system" in prompts
         assert "transform_user" in prompts
-        assert "introduction_system" in prompts
-        assert "introduction_user" in prompts
+        assert "json_fix" in prompts
         assert "language_extra" in prompts
         assert "article_structure_extra" in prompts
 
@@ -27,6 +26,7 @@ class TestPromptManager:
             level="B1",
             language_extra="",
             article_structure_extra="",
+            json_schema="{}",
         )
 
         assert "English" in result
@@ -75,6 +75,7 @@ class TestPromptManager:
             level="B1",
             language_extra="Avoid using Präteritum.",
             article_structure_extra="",
+            json_schema="{}",
         )
 
         assert "Avoid using Präteritum." in result
@@ -88,6 +89,7 @@ class TestPromptManager:
             level="B1",
             language_extra="",
             article_structure_extra="Include example sentences for each glossary word.",
+            json_schema="{}",
         )
 
         assert "Include example sentences for each glossary word." in result

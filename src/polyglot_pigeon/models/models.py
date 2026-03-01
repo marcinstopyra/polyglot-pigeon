@@ -75,3 +75,20 @@ class Email(MyBaseModel):
     date: datetime
     body_text: str
     body_html: str | None = None
+
+
+class TargetArticle(MyBaseModel):
+    """A single transformed article in the target language."""
+
+    title: str
+    source: str
+    date: str
+    content: str
+    glossary: dict[str, str]
+
+
+class TargetEmailContent(MyBaseModel):
+    """Full structured LLM response for the learning digest email."""
+
+    introduction: str
+    articles: list[TargetArticle]
