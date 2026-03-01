@@ -8,7 +8,13 @@ from dataclasses import dataclass
 
 from pydantic import ValidationError
 
+from polyglot_pigeon.config import get_config
+from polyglot_pigeon.content import ContentCleaner
+from polyglot_pigeon.llm import create_llm_client
+from polyglot_pigeon.llm.models import LLMMessage, MessageRole
+from polyglot_pigeon.mail import EmailSender
 from polyglot_pigeon.models.models import Email, TargetEmailContent
+from polyglot_pigeon.prompts import PromptManager
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +56,6 @@ def _parse_json_with_retry(
        prompt, then attempt parse again.
     3. If all retries exhausted, raise ValueError.
     """
-    from polyglot_pigeon.llm.models import LLMMessage, MessageRole
-
     def _try_parse(text: str) -> TargetEmailContent | None:
         try:
             return TargetEmailContent.model_validate_json(_strip_json_fences(text))
@@ -188,8 +192,6 @@ class EmailProcessingPipeline(Pipeline):
     """
 
     def __init__(self):
-        from polyglot_pigeon.config import get_config
-
         self.config = get_config()
 
     def build_digest(self, emails: list[Email]) -> DigestContent:
@@ -204,11 +206,6 @@ class EmailProcessingPipeline(Pipeline):
         Raises:
             ValueError: If no content remains after cleaning or JSON parsing fails.
         """
-        from polyglot_pigeon.content import ContentCleaner
-        from polyglot_pigeon.llm import create_llm_client
-        from polyglot_pigeon.llm.models import LLMMessage, MessageRole
-        from polyglot_pigeon.prompts import PromptManager
-
         cleaned = ContentCleaner().clean(emails)
         if not cleaned:
             raise ValueError("No emails had content after cleaning")
@@ -270,8 +267,6 @@ class EmailProcessingPipeline(Pipeline):
         Returns:
             ProcessingResult indicating success or failure.
         """
-        from polyglot_pigeon.mail import EmailSender
-
         try:
             with EmailSender(self.config.target_email) as sender:
                 sender.send(
