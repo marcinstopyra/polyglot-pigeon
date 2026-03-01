@@ -246,6 +246,52 @@ class TestEmailScheduler:
 
         assert scheduler._running is False
 
+    def test_start_clears_global_schedule_state(self, mock_config):
+        import schedule as schedule_lib
+
+        mock_config.schedule.enabled = False  # prevent the daemon loop from running
+        scheduler = EmailScheduler(config=mock_config)
+
+        # Seed the global scheduler with a stale job from a previous run
+        schedule_lib.every().day.at("06:00").do(lambda: None)
+        assert len(schedule_lib.jobs) == 1
+
+        scheduler.start()
+
+        # start() must have cleared stale jobs even though scheduling is disabled
+        # Re-enable and call start() properly to test the clear path
+        schedule_lib.clear()
+        mock_config.schedule.enabled = True
+        with patch("time.sleep", side_effect=StopIteration):
+            schedule_lib.every().day.at("06:00").do(lambda: None)  # stale job
+            try:
+                scheduler.start()
+            except StopIteration:
+                pass
+
+        # Only one job must exist — the one registered by start(), not the stale one
+        assert len(schedule_lib.jobs) == 1
+        schedule_lib.clear()
+
+    def test_start_passes_timezone_to_schedule(self, mock_config):
+        import schedule as schedule_lib
+
+        mock_config.schedule.time = "08:00"
+        mock_config.schedule.timezone = "Europe/Warsaw"
+        scheduler = EmailScheduler(config=mock_config)
+
+        with patch("time.sleep", side_effect=StopIteration):
+            try:
+                scheduler.start()
+            except StopIteration:
+                pass
+
+        assert len(schedule_lib.jobs) == 1
+        job = schedule_lib.jobs[0]
+        assert job.at_time_zone is not None
+        assert job.at_time_zone.zone == "Europe/Warsaw"
+        schedule_lib.clear()
+
 
 class TestScheduleConfig:
     """Test ScheduleConfig."""

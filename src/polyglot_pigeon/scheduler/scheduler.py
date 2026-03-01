@@ -121,7 +121,8 @@ class EmailScheduler:
         logger.info(f"Starting scheduler: {schedule_time} {tz_name}")
         logger.info(f"Current time in {tz_name}: {self._get_current_time_in_tz()}")
 
-        schedule.every().day.at(schedule_time).do(self._job)
+        schedule.clear()
+        schedule.every().day.at(schedule_time, tz_name).do(self._job)
 
         self._running = True
         while self._running:
