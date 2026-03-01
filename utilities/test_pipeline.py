@@ -24,6 +24,7 @@ from polyglot_pigeon.llm import create_llm_client
 from polyglot_pigeon.llm.models import LLMMessage, MessageRole
 from polyglot_pigeon.mail import EmailReader, EmailSender
 from polyglot_pigeon.prompts import PromptManager
+from polyglot_pigeon.scheduler.pipeline import markdown_to_email_html
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -240,6 +241,9 @@ def main() -> None:
     body = f"{introduction}\n\n## Articles:\n\n{articles_text}"
     subject = f"Your {target_language} learning digest"
 
+    # Step 6.5: Convert markdown to HTML
+    body_html = markdown_to_email_html(body)
+
     # Step 7: Send or save
     if args.dry_run:
         output_dir = Path(args.output_dir)
@@ -257,6 +261,7 @@ def main() -> None:
                     to=config.target_email.address,
                     subject=subject,
                     body_text=body,
+                    body_html=body_html,
                 )
             print("Email sent successfully.")
         except Exception as e:

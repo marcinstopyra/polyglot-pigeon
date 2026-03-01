@@ -1,12 +1,40 @@
 """Processing pipeline interface and implementations."""
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+
+import markdown
 
 from polyglot_pigeon.models.models import Email
 
 logger = logging.getLogger(__name__)
+
+_HTML_STYLE = (
+    "body{font-family:Georgia,'Times New Roman',serif;"
+    "max-width:680px;margin:0 auto;padding:20px;line-height:1.7;color:#333;}"
+    "h1{font-size:1.8em;color:#1a1a2e;margin-top:0;}"
+    "h2{font-size:1.4em;color:#1a1a2e;"
+    "border-bottom:2px solid #ddd;padding-bottom:6px;margin-top:2em;}"
+    "h3{font-size:1.1em;color:#1a1a2e;}"
+    "hr{border:none;border-top:2px solid #ddd;margin:24px 0;}"
+    "strong{color:#1a1a2e;}em{color:#555;}p{margin:0.7em 0;}"
+    "table{border-collapse:collapse;width:100%;}"
+    "th,td{border:1px solid #ddd;padding:8px;text-align:left;}"
+    "th{background:#f5f5f5;}"
+)
+
+
+def markdown_to_email_html(body: str) -> str:
+    """Convert a markdown string to a styled HTML email document."""
+    normalised = re.sub(r"\n*\n---\n*\n*", "\n\n---\n\n", body)
+    fragment = markdown.markdown(normalised, extensions=["tables"])
+    return (
+        f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
+        f"<style>{_HTML_STYLE}</style></head>"
+        f"<body>{fragment}</body></html>"
+    )
 
 
 @dataclass
@@ -142,12 +170,16 @@ class EmailProcessingPipeline(Pipeline):
             body = f"{introduction}\n\n## Articles:\n\n{articles_text}"
             subject = f"Your {target_language} learning digest"
 
+            # Step 6.5: Convert markdown to HTML
+            body_html = markdown_to_email_html(body)
+
             # Step 7: Send
             with EmailSender(self.config.target_email) as sender:
                 sender.send(
                     to=self.config.target_email.address,
                     subject=subject,
                     body_text=body,
+                    body_html=body_html,
                 )
 
             logger.info(
