@@ -14,6 +14,9 @@ def setup_logger(level: int = logging.INFO) -> None:
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    # Suppress verbose request/response body logging from HTTP client libraries
+    for noisy in ("httpx", "httpcore", "anthropic", "openai"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 def main() -> None:
