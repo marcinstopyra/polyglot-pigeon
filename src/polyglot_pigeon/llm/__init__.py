@@ -1,8 +1,7 @@
 from polyglot_pigeon.llm.client import (
     ClaudeClient,
     LLMClient,
-    OpenAIClient,
-    PerplexityClient,
+    OpenAICompatibleClient,
     create_llm_client,
 )
 from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
@@ -13,7 +12,6 @@ __all__ = [
     "LLMMessage",
     "LLMResponse",
     "MessageRole",
-    "OpenAIClient",
-    "PerplexityClient",
+    "OpenAICompatibleClient",
     "create_llm_client",
 ]

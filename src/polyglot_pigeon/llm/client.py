@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Iterator
 
 from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
-from polyglot_pigeon.models.configurations import LLMConfig, LLMProvider
+from polyglot_pigeon.models.configurations import LLMConfig
 
 logger = logging.getLogger(__name__)
 
@@ -18,76 +18,30 @@ class LLMClient(ABC):
 
     @abstractmethod
     def complete(self, messages: list[LLMMessage]) -> LLMResponse:
-        """
-        Send a completion request to the LLM.
-
-        Args:
-            messages: List of messages forming the conversation.
-
-        Returns:
-            LLMResponse with the model's response.
-        """
+        """Send a completion request to the LLM."""
         pass
 
     @abstractmethod
     async def complete_async(self, messages: list[LLMMessage]) -> LLMResponse:
-        """
-        Send an async completion request to the LLM.
-
-        Args:
-            messages: List of messages forming the conversation.
-
-        Returns:
-            LLMResponse with the model's response.
-        """
+        """Send an async completion request to the LLM."""
         pass
 
     def stream(self, messages: list[LLMMessage]) -> Iterator[str]:
-        """
-        Stream a completion response from the LLM.
-
-        Args:
-            messages: List of messages forming the conversation.
-
-        Yields:
-            String chunks of the response as they arrive.
-        """
+        """Stream a completion response from the LLM."""
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support streaming"
         )
 
     async def stream_async(self, messages: list[LLMMessage]) -> AsyncIterator[str]:
-        """
-        Stream an async completion response from the LLM.
-
-        Args:
-            messages: List of messages forming the conversation.
-
-        Yields:
-            String chunks of the response as they arrive.
-        """
+        """Stream an async completion response from the LLM."""
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support async streaming"
         )
         yield  # Make this a generator
 
-    def _get_model_name(self) -> str:
-        """Get the model name to use, falling back to provider default."""
-        if self.config.model:
-            return self.config.model
-        return self._default_model()
-
-    @abstractmethod
-    def _default_model(self) -> str:
-        """Return the default model for this provider."""
-        pass
-
 
 class ClaudeClient(LLMClient):
-    """Client for Anthropic's Claude API."""
-
-    def _default_model(self) -> str:
-        return "claude-sonnet-4-20250514"
+    """Client for Anthropic's Claude API (native SDK)."""
 
     def complete(self, messages: list[LLMMessage]) -> LLMResponse:
         try:
@@ -100,7 +54,6 @@ class ClaudeClient(LLMClient):
 
         client = anthropic.Anthropic(api_key=self.config.api_key)
 
-        # Separate system message from conversation
         system_content = None
         conversation_messages = []
         for msg in messages:
@@ -112,7 +65,7 @@ class ClaudeClient(LLMClient):
                 )
 
         kwargs = {
-            "model": self._get_model_name(),
+            "model": self.config.model,
             "max_tokens": self.config.max_tokens,
             "messages": conversation_messages,
         }
@@ -121,7 +74,7 @@ class ClaudeClient(LLMClient):
         if self.config.temperature is not None:
             kwargs["temperature"] = self.config.temperature
 
-        logger.debug(f"Sending request to Claude: {self._get_model_name()}")
+        logger.debug(f"Sending request to Claude: {self.config.model}")
         response = client.messages.create(**kwargs)
 
         return LLMResponse(
@@ -154,7 +107,7 @@ class ClaudeClient(LLMClient):
                 )
 
         kwargs = {
-            "model": self._get_model_name(),
+            "model": self.config.model,
             "max_tokens": self.config.max_tokens,
             "messages": conversation_messages,
         }
@@ -163,7 +116,7 @@ class ClaudeClient(LLMClient):
         if self.config.temperature is not None:
             kwargs["temperature"] = self.config.temperature
 
-        logger.debug(f"Sending async request to Claude: {self._get_model_name()}")
+        logger.debug(f"Sending async request to Claude: {self.config.model}")
         response = await client.messages.create(**kwargs)
 
         return LLMResponse(
@@ -175,30 +128,36 @@ class ClaudeClient(LLMClient):
         )
 
 
-class OpenAIClient(LLMClient):
-    """Client for OpenAI's API."""
+class OpenAICompatibleClient(LLMClient):
+    """Client for any OpenAI-compatible API.
 
-    def _default_model(self) -> str:
-        return "gpt-4o"
+    Works with OpenAI, Perplexity, Ollama, or any endpoint that speaks
+    the /v1/chat/completions protocol. Set config.url to override the
+    default OpenAI base URL.
+    """
 
     def complete(self, messages: list[LLMMessage]) -> LLMResponse:
         try:
             import openai
         except ImportError as e:
             raise ImportError(
-                "openai package is required for OpenAI. "
-                "Install with: pip install openai"
+                "openai package is required. Install with: pip install openai"
             ) from e
 
-        client = openai.OpenAI(api_key=self.config.api_key)
+        kwargs = {"api_key": self.config.api_key}
+        if self.config.url:
+            kwargs["base_url"] = self.config.url
 
+        client = openai.OpenAI(**kwargs)
         formatted_messages = [
             {"role": msg.role.name.lower(), "content": msg.content} for msg in messages
         ]
 
-        logger.debug(f"Sending request to OpenAI: {self._get_model_name()}")
+        logger.debug(
+            f"Sending request to {self.config.url or 'OpenAI'}: {self.config.model}"
+        )
         response = client.chat.completions.create(
-            model=self._get_model_name(),
+            model=self.config.model,
             messages=formatted_messages,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
@@ -218,96 +177,23 @@ class OpenAIClient(LLMClient):
             import openai
         except ImportError as e:
             raise ImportError(
-                "openai package is required for OpenAI. "
-                "Install with: pip install openai"
+                "openai package is required. Install with: pip install openai"
             ) from e
 
-        client = openai.AsyncOpenAI(api_key=self.config.api_key)
+        kwargs = {"api_key": self.config.api_key}
+        if self.config.url:
+            kwargs["base_url"] = self.config.url
 
+        client = openai.AsyncOpenAI(**kwargs)
         formatted_messages = [
             {"role": msg.role.name.lower(), "content": msg.content} for msg in messages
         ]
 
-        logger.debug(f"Sending async request to OpenAI: {self._get_model_name()}")
+        logger.debug(
+            f"Sending async request to {self.config.url or 'OpenAI'}: {self.config.model}"
+        )
         response = await client.chat.completions.create(
-            model=self._get_model_name(),
-            messages=formatted_messages,
-            max_tokens=self.config.max_tokens,
-            temperature=self.config.temperature,
-        )
-
-        choice = response.choices[0]
-        return LLMResponse(
-            content=choice.message.content or "",
-            model=response.model,
-            input_tokens=response.usage.prompt_tokens if response.usage else None,
-            output_tokens=response.usage.completion_tokens if response.usage else None,
-            stop_reason=choice.finish_reason,
-        )
-
-
-class PerplexityClient(LLMClient):
-    """Client for Perplexity's API (OpenAI-compatible)."""
-
-    PERPLEXITY_BASE_URL = "https://api.perplexity.ai"
-
-    def _default_model(self) -> str:
-        return "sonar-pro"
-
-    def complete(self, messages: list[LLMMessage]) -> LLMResponse:
-        try:
-            import openai
-        except ImportError as e:
-            raise ImportError(
-                "openai package is required for Perplexity. "
-                "Install with: pip install openai"
-            ) from e
-
-        client = openai.OpenAI(
-            api_key=self.config.api_key, base_url=self.PERPLEXITY_BASE_URL
-        )
-
-        formatted_messages = [
-            {"role": msg.role.name.lower(), "content": msg.content} for msg in messages
-        ]
-
-        logger.debug(f"Sending request to Perplexity: {self._get_model_name()}")
-        response = client.chat.completions.create(
-            model=self._get_model_name(),
-            messages=formatted_messages,
-            max_tokens=self.config.max_tokens,
-            temperature=self.config.temperature,
-        )
-
-        choice = response.choices[0]
-        return LLMResponse(
-            content=choice.message.content or "",
-            model=response.model,
-            input_tokens=response.usage.prompt_tokens if response.usage else None,
-            output_tokens=response.usage.completion_tokens if response.usage else None,
-            stop_reason=choice.finish_reason,
-        )
-
-    async def complete_async(self, messages: list[LLMMessage]) -> LLMResponse:
-        try:
-            import openai
-        except ImportError as e:
-            raise ImportError(
-                "openai package is required for Perplexity. "
-                "Install with: pip install openai"
-            ) from e
-
-        client = openai.AsyncOpenAI(
-            api_key=self.config.api_key, base_url=self.PERPLEXITY_BASE_URL
-        )
-
-        formatted_messages = [
-            {"role": msg.role.name.lower(), "content": msg.content} for msg in messages
-        ]
-
-        logger.debug(f"Sending async request to Perplexity: {self._get_model_name()}")
-        response = await client.chat.completions.create(
-            model=self._get_model_name(),
+            model=self.config.model,
             messages=formatted_messages,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
@@ -324,27 +210,17 @@ class PerplexityClient(LLMClient):
 
 
 def create_llm_client(config: LLMConfig) -> LLMClient:
+    """Create an LLM client from config.
+
+    Routes to ClaudeClient when provider='claude', otherwise uses
+    OpenAICompatibleClient (works with OpenAI, Perplexity, Ollama, etc.).
     """
-    Factory function to create an LLM client based on the provider.
+    if config.provider and config.provider.lower() == "claude":
+        logger.info(f"Creating Claude client: {config.model}")
+        return ClaudeClient(config)
 
-    Args:
-        config: LLM configuration containing provider and credentials.
-
-    Returns:
-        An LLMClient instance for the specified provider.
-
-    Raises:
-        ValueError: If the provider is not supported.
-    """
-    provider_map: dict[LLMProvider, type[LLMClient]] = {
-        LLMProvider.CLAUDE: ClaudeClient,
-        LLMProvider.OPENAI: OpenAIClient,
-        LLMProvider.PERPLEXITY: PerplexityClient,
-    }
-
-    client_class = provider_map.get(config.provider)
-    if client_class is None:
-        raise ValueError(f"Unsupported LLM provider: {config.provider}")
-
-    logger.info(f"Creating LLM client for provider: {config.provider.name}")
-    return client_class(config)
+    logger.info(
+        f"Creating OpenAI-compatible client: {config.model}"
+        f" @ {config.url or 'OpenAI default'}"
+    )
+    return OpenAICompatibleClient(config)

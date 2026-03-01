@@ -8,16 +8,25 @@ from polyglot_pigeon.llm import (
     LLMMessage,
     LLMResponse,
     MessageRole,
-    OpenAIClient,
-    PerplexityClient,
+    OpenAICompatibleClient,
     create_llm_client,
 )
-from polyglot_pigeon.models.configurations import LLMConfig, LLMProvider
+from polyglot_pigeon.models.configurations import LLMConfig
+
+
+# ── fixtures ──────────────────────────────────────────────────────────────────
+
+
+def _config(**kwargs) -> LLMConfig:
+    defaults = dict(api_key="test-key", model="claude-haiku-4-5-20251001")
+    defaults.update(kwargs)
+    return LLMConfig(**defaults)
+
+
+# ── LLM models ────────────────────────────────────────────────────────────────
 
 
 class TestLLMModels:
-    """Test LLM Pydantic models."""
-
     def test_message_role_enum(self):
         assert MessageRole.SYSTEM.name == "SYSTEM"
         assert MessageRole.USER.name == "USER"
@@ -44,14 +53,14 @@ class TestLLMModels:
     def test_llm_response_creation(self):
         response = LLMResponse(
             content="Hello!",
-            model="gpt-4o",
+            model="claude-haiku-4-5-20251001",
             input_tokens=10,
             output_tokens=5,
             stop_reason="end_turn",
         )
 
         assert response.content == "Hello!"
-        assert response.model == "gpt-4o"
+        assert response.model == "claude-haiku-4-5-20251001"
         assert response.input_tokens == 10
         assert response.output_tokens == 5
         assert response.stop_reason == "end_turn"
@@ -64,82 +73,47 @@ class TestLLMModels:
         assert response.stop_reason is None
 
 
+# ── factory ───────────────────────────────────────────────────────────────────
+
+
 class TestLLMClientFactory:
-    """Test LLM client factory function."""
-
-    @pytest.fixture
-    def claude_config(self):
-        return LLMConfig(
-            provider=LLMProvider.CLAUDE,
-            api_key="test-key",
-            max_tokens=1024,
-            temperature=0.7,
-        )
-
-    @pytest.fixture
-    def openai_config(self):
-        return LLMConfig(
-            provider=LLMProvider.OPENAI,
-            api_key="test-key",
-            max_tokens=1024,
-            temperature=0.7,
-        )
-
-    @pytest.fixture
-    def perplexity_config(self):
-        return LLMConfig(
-            provider=LLMProvider.PERPLEXITY,
-            api_key="test-key",
-            max_tokens=1024,
-            temperature=0.7,
-        )
-
-    def test_create_claude_client(self, claude_config):
-        client = create_llm_client(claude_config)
+    def test_creates_claude_client_for_provider_claude(self):
+        client = create_llm_client(_config(provider="claude"))
 
         assert isinstance(client, ClaudeClient)
-        assert client.config == claude_config
 
-    def test_create_openai_client(self, openai_config):
-        client = create_llm_client(openai_config)
+    def test_creates_claude_client_case_insensitive(self):
+        client = create_llm_client(_config(provider="CLAUDE"))
 
-        assert isinstance(client, OpenAIClient)
-        assert client.config == openai_config
+        assert isinstance(client, ClaudeClient)
 
-    def test_create_perplexity_client(self, perplexity_config):
-        client = create_llm_client(perplexity_config)
+    def test_creates_openai_compatible_client_by_default(self):
+        client = create_llm_client(_config(model="gpt-4o"))
 
-        assert isinstance(client, PerplexityClient)
-        assert client.config == perplexity_config
+        assert isinstance(client, OpenAICompatibleClient)
+
+    def test_creates_openai_compatible_client_with_url(self):
+        client = create_llm_client(
+            _config(model="sonar-pro", url="https://api.perplexity.ai")
+        )
+
+        assert isinstance(client, OpenAICompatibleClient)
+
+    def test_creates_openai_compatible_client_for_ollama(self):
+        client = create_llm_client(
+            _config(model="llama3", url="http://localhost:11434/v1")
+        )
+
+        assert isinstance(client, OpenAICompatibleClient)
+
+
+# ── ClaudeClient ──────────────────────────────────────────────────────────────
 
 
 class TestClaudeClient:
-    """Test Claude client functionality."""
-
     @pytest.fixture
-    def config(self):
-        return LLMConfig(
-            provider=LLMProvider.CLAUDE,
-            api_key="test-key",
-            max_tokens=1024,
-            temperature=0.7,
-        )
-
-    @pytest.fixture
-    def client(self, config):
-        return ClaudeClient(config)
-
-    def test_default_model(self, client):
-        assert client._default_model() == "claude-sonnet-4-20250514"
-
-    def test_get_model_name_with_override(self, config):
-        config.model = "claude-3-opus-20240229"
-        client = ClaudeClient(config)
-
-        assert client._get_model_name() == "claude-3-opus-20240229"
-
-    def test_get_model_name_default(self, client):
-        assert client._get_model_name() == "claude-sonnet-4-20250514"
+    def client(self):
+        return ClaudeClient(_config(provider="claude"))
 
     def test_complete_missing_package(self, client):
         with patch.dict("sys.modules", {"anthropic": None}):
@@ -150,54 +124,63 @@ class TestClaudeClient:
 
     def test_complete_success(self, client):
         mock_anthropic = MagicMock()
-        mock_client = MagicMock()
-        mock_anthropic.Anthropic.return_value = mock_client
+        mock_api = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_api
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="Hello!")]
-        mock_response.model = "claude-sonnet-4-20250514"
+        mock_response.model = "claude-haiku-4-5-20251001"
         mock_response.usage.input_tokens = 10
         mock_response.usage.output_tokens = 5
         mock_response.stop_reason = "end_turn"
-        mock_client.messages.create.return_value = mock_response
+        mock_api.messages.create.return_value = mock_response
 
         with patch.dict(sys.modules, {"anthropic": mock_anthropic}):
-            messages = [
+            response = client.complete([
                 LLMMessage(role=MessageRole.SYSTEM, content="Be helpful"),
                 LLMMessage(role=MessageRole.USER, content="Hi"),
-            ]
-            response = client.complete(messages)
+            ])
 
         assert response.content == "Hello!"
-        assert response.model == "claude-sonnet-4-20250514"
         assert response.input_tokens == 10
         assert response.output_tokens == 5
 
-        # Verify system message was separated
-        call_kwargs = mock_client.messages.create.call_args[1]
+    def test_complete_separates_system_message(self, client):
+        mock_anthropic = MagicMock()
+        mock_api = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_api
+        mock_api.messages.create.return_value = MagicMock(
+            content=[MagicMock(text="ok")],
+            model="m",
+            usage=MagicMock(input_tokens=1, output_tokens=1),
+            stop_reason="end_turn",
+        )
+
+        with patch.dict(sys.modules, {"anthropic": mock_anthropic}):
+            client.complete([
+                LLMMessage(role=MessageRole.SYSTEM, content="Be helpful"),
+                LLMMessage(role=MessageRole.USER, content="Hi"),
+            ])
+
+        call_kwargs = mock_api.messages.create.call_args[1]
         assert call_kwargs["system"] == "Be helpful"
         assert len(call_kwargs["messages"]) == 1
         assert call_kwargs["messages"][0]["role"] == "user"
 
 
-class TestOpenAIClient:
-    """Test OpenAI client functionality."""
+# ── OpenAICompatibleClient ────────────────────────────────────────────────────
+
+
+class TestOpenAICompatibleClient:
+    @pytest.fixture
+    def client(self):
+        return OpenAICompatibleClient(_config(model="gpt-4o"))
 
     @pytest.fixture
-    def config(self):
-        return LLMConfig(
-            provider=LLMProvider.OPENAI,
-            api_key="test-key",
-            max_tokens=1024,
-            temperature=0.7,
+    def perplexity_client(self):
+        return OpenAICompatibleClient(
+            _config(model="sonar-pro", url="https://api.perplexity.ai")
         )
-
-    @pytest.fixture
-    def client(self, config):
-        return OpenAIClient(config)
-
-    def test_default_model(self, client):
-        assert client._default_model() == "gpt-4o"
 
     def test_complete_missing_package(self, client):
         with patch.dict("sys.modules", {"openai": None}):
@@ -208,8 +191,8 @@ class TestOpenAIClient:
 
     def test_complete_success(self, client):
         mock_openai = MagicMock()
-        mock_client = MagicMock()
-        mock_openai.OpenAI.return_value = mock_client
+        mock_api = MagicMock()
+        mock_openai.OpenAI.return_value = mock_api
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -218,88 +201,69 @@ class TestOpenAIClient:
         mock_response.model = "gpt-4o"
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 5
-        mock_client.chat.completions.create.return_value = mock_response
+        mock_api.chat.completions.create.return_value = mock_response
 
         with patch.dict(sys.modules, {"openai": mock_openai}):
-            messages = [LLMMessage(role=MessageRole.USER, content="Hi")]
-            response = client.complete(messages)
+            response = client.complete([LLMMessage(role=MessageRole.USER, content="Hi")])
 
         assert response.content == "Hello!"
         assert response.model == "gpt-4o"
         assert response.input_tokens == 10
         assert response.output_tokens == 5
 
-
-class TestPerplexityClient:
-    """Test Perplexity client functionality."""
-
-    @pytest.fixture
-    def config(self):
-        return LLMConfig(
-            provider=LLMProvider.PERPLEXITY,
-            api_key="test-key",
-            max_tokens=1024,
-            temperature=0.7,
-        )
-
-    @pytest.fixture
-    def client(self, config):
-        return PerplexityClient(config)
-
-    def test_default_model(self, client):
-        assert client._default_model() == "sonar-pro"
-
-    def test_base_url(self, client):
-        assert client.PERPLEXITY_BASE_URL == "https://api.perplexity.ai"
-
-    def test_complete_uses_custom_base_url(self, client):
+    def test_complete_uses_no_base_url_by_default(self, client):
         mock_openai = MagicMock()
-        mock_client = MagicMock()
-        mock_openai.OpenAI.return_value = mock_client
-
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Hello!"
-        mock_response.choices[0].finish_reason = "stop"
-        mock_response.model = "sonar-pro"
-        mock_response.usage.prompt_tokens = 10
-        mock_response.usage.completion_tokens = 5
-        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.OpenAI.return_value = MagicMock(
+            chat=MagicMock(completions=MagicMock(create=MagicMock(
+                return_value=MagicMock(
+                    choices=[MagicMock(message=MagicMock(content="ok"), finish_reason="stop")],
+                    model="gpt-4o",
+                    usage=MagicMock(prompt_tokens=1, completion_tokens=1),
+                )
+            )))
+        )
 
         with patch.dict(sys.modules, {"openai": mock_openai}):
-            messages = [LLMMessage(role=MessageRole.USER, content="Hi")]
-            client.complete(messages)
+            client.complete([LLMMessage(role=MessageRole.USER, content="Hi")])
 
-        # Verify custom base URL was used
-        mock_openai.OpenAI.assert_called_once_with(
-            api_key="test-key", base_url="https://api.perplexity.ai"
+        call_kwargs = mock_openai.OpenAI.call_args[1]
+        assert "base_url" not in call_kwargs
+
+    def test_complete_uses_custom_base_url(self, perplexity_client):
+        mock_openai = MagicMock()
+        mock_openai.OpenAI.return_value = MagicMock(
+            chat=MagicMock(completions=MagicMock(create=MagicMock(
+                return_value=MagicMock(
+                    choices=[MagicMock(message=MagicMock(content="ok"), finish_reason="stop")],
+                    model="sonar-pro",
+                    usage=MagicMock(prompt_tokens=1, completion_tokens=1),
+                )
+            )))
         )
+
+        with patch.dict(sys.modules, {"openai": mock_openai}):
+            perplexity_client.complete([LLMMessage(role=MessageRole.USER, content="Hi")])
+
+        call_kwargs = mock_openai.OpenAI.call_args[1]
+        assert call_kwargs["base_url"] == "https://api.perplexity.ai"
+
+
+# ── streaming ─────────────────────────────────────────────────────────────────
 
 
 class TestLLMClientStreaming:
-    """Test streaming functionality."""
-
-    @pytest.fixture
-    def config(self):
-        return LLMConfig(
-            provider=LLMProvider.CLAUDE,
-            api_key="test-key",
-            max_tokens=1024,
-            temperature=0.7,
-        )
-
-    def test_stream_not_implemented(self, config):
-        client = ClaudeClient(config)
+    def test_stream_not_implemented(self):
+        client = ClaudeClient(_config(provider="claude"))
 
         with pytest.raises(NotImplementedError) as exc_info:
             list(client.stream([LLMMessage(role=MessageRole.USER, content="Hi")]))
 
         assert "does not support streaming" in str(exc_info.value)
 
-    def test_stream_async_not_implemented(self, config):
+    def test_stream_async_not_implemented(self):
         import asyncio
 
-        client = ClaudeClient(config)
+        client = ClaudeClient(_config(provider="claude"))
 
         async def test_async():
             with pytest.raises(NotImplementedError) as exc_info:

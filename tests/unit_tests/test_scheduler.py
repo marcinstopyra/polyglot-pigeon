@@ -12,7 +12,6 @@ from polyglot_pigeon.models.configurations import (
     LanguageConfig,
     LanguageLevel,
     LLMConfig,
-    LLMProvider,
     ScheduleConfig,
     SourceEmailConfig,
     TargetEmailConfig,
@@ -102,8 +101,9 @@ class TestEmailScheduler:
                 mark_as_read=True,
             ),
             llm=LLMConfig(
-                provider=LLMProvider.CLAUDE,
+                provider="claude",
                 api_key="test-api-key",
+                model="claude-haiku-4-5-20251001",
             ),
             language=LanguageConfig(
                 known=Language.ENGLISH,

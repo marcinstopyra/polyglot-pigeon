@@ -10,7 +10,6 @@ from polyglot_pigeon.models.configurations import (
     Language,
     LanguageConfig,
     LLMConfig,
-    LLMProvider,
     SourceEmailConfig,
     TargetEmailConfig,
 )
@@ -21,7 +20,7 @@ def test_full_config():
         source_email=SourceEmailConfig(
             address="source@example.com", app_password="secret123"
         ),
-        llm=LLMConfig(provider="claude", api_key="sk-test"),
+        llm=LLMConfig(provider="claude", api_key="sk-test", model="claude-sonnet-4-6"),
         language=LanguageConfig(known="English", target="German", level="b2"),
         target_email=TargetEmailConfig(
             address="target@example.com",
@@ -39,9 +38,10 @@ def test_full_config():
         },
         "llm": {
             "api_key": "sk-test",
-            "max_tokens": 4096,
-            "model": None,
+            "model": "claude-sonnet-4-6",
+            "url": None,
             "provider": "claude",
+            "max_tokens": 4096,
             "temperature": 0.7,
         },
         "logging": {
@@ -98,9 +98,9 @@ class TestConfigLoader:
                 "mark_as_read": True,
             },
             "llm": {
-                "provider": "CLAUDE",
+                "provider": "claude",
                 "api_key": "sk-test123",
-                "model": "claude-3-opus-20240229",
+                "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 4096,
                 "temperature": 0.7,
             },
@@ -140,7 +140,7 @@ class TestConfigLoader:
 
         assert isinstance(config, Config)
         assert config.source_email.address == "source@example.com"
-        assert config.llm.provider == LLMProvider.CLAUDE
+        assert config.llm.provider == "claude"
         assert config.language.target == Language.GERMAN
 
     def test_load_caches_config(self, temp_config_file):
@@ -243,7 +243,7 @@ class TestConfigLoader:
                 "address": "source@example.com",
                 "app_password": "secret123",
             },
-            "llm": {"provider": "clAUde", "api_key": "sk-test"},
+            "llm": {"provider": "clAUde", "api_key": "sk-test", "model": "claude-haiku-4-5-20251001"},
             "language": {"known": "English", "target": "German", "level": "b2"},
             "target_email": {
                 "address": "target@example.com",

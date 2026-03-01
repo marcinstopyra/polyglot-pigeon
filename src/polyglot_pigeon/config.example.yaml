@@ -1,18 +1,40 @@
 source_email:
   address: polyglot@pigeon.com
   app_password: app_password
+
+# LLM configuration — choose one of the examples below:
+
+# OpenAI
 llm:
-  provider: perplexity
-  api_key: my_llm_api_key
-  model: NULL
+  api_key: sk-...
+  model: gpt-4o
+
+# Perplexity (OpenAI-compatible, set url)
+# llm:
+#   api_key: pplx-...
+#   model: sonar-pro
+#   url: https://api.perplexity.ai
+
+# Ollama (local, no real key needed)
+# llm:
+#   api_key: ollama
+#   model: llama3
+#   url: http://localhost:11434/v1
+
+# Anthropic Claude (native SDK, set provider: claude)
+# llm:
+#   api_key: sk-ant-...
+#   model: claude-haiku-4-5-20251001
+#   provider: claude
+
 language:
   known: english
   target: german
   level: b1
+
 target_email:
   address: target@gmail.com
-  smtp_server: smtp_server
-  smtp_port: 123
+  smtp_server: smtp.gmail.com
+  smtp_port: 587
   smtp_user: smtp_user
   smtp_password: smtp_password
-  

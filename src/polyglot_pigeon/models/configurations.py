@@ -1,16 +1,9 @@
 from enum import Enum, auto
 from pathlib import Path
-from typing import Optional
 
 from pydantic import Field
 
 from polyglot_pigeon.models.models import MyBaseModel
-
-
-class LLMProvider(Enum):
-    CLAUDE = auto()
-    PERPLEXITY = auto()
-    OPENAI = auto()
 
 
 class SourceEmailConfig(MyBaseModel):
@@ -23,9 +16,10 @@ class SourceEmailConfig(MyBaseModel):
 
 
 class LLMConfig(MyBaseModel):
-    provider: LLMProvider
     api_key: str
-    model: Optional[str] = None
+    model: str
+    url: str | None = None      # base_url for OpenAI-compatible endpoints; omit for OpenAI default
+    provider: str | None = None  # set to "claude" to use the native Anthropic SDK
     max_tokens: int = 4096
     temperature: float = 0.7
 
