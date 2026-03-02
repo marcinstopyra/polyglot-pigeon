@@ -4,15 +4,19 @@ import json
 import logging
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 
+import pytz
+from jinja2 import Environment, FileSystemLoader
 from pydantic import ValidationError
 
 from polyglot_pigeon.config import get_config
 from polyglot_pigeon.content import ContentCleaner
 from polyglot_pigeon.llm import create_llm_client
 from polyglot_pigeon.llm.models import LLMMessage, MessageRole
-from polyglot_pigeon.mail import EmailSender
+from polyglot_pigeon.mail import EmailSender, InlineImage
 from polyglot_pigeon.models.models import Email, TargetEmailContent
 from polyglot_pigeon.prompts import PromptManager
 
@@ -20,16 +24,9 @@ logger = logging.getLogger(__name__)
 
 MAX_JSON_RETRIES = 3
 
-_HTML_STYLE = (
-    "body{font-family:Georgia,'Times New Roman',serif;"
-    "max-width:680px;margin:0 auto;padding:20px;line-height:1.7;color:#333;}"
-    "h1{font-size:1.8em;color:#1a1a2e;margin-top:0;}"
-    "h2{font-size:1.4em;color:#1a1a2e;"
-    "border-bottom:2px solid #ddd;padding-bottom:6px;margin-top:2em;}"
-    "h3{font-size:1.1em;color:#1a1a2e;}"
-    "hr{border:none;border-top:2px solid #ddd;margin:24px 0;}"
-    "strong{color:#1a1a2e;}em{color:#555;}p{margin:0.7em 0;}"
-)
+_TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+_LOGO_PATH = _TEMPLATES_DIR / "logo.png"
+_jinja_env = Environment(loader=FileSystemLoader(_TEMPLATES_DIR), autoescape=True)
 
 
 def _strip_json_fences(text: str) -> str:
@@ -88,26 +85,15 @@ def _parse_json_with_retry(
         )
 
 
-def _render_html(content: TargetEmailContent) -> str:
+def _render_html(
+    content: TargetEmailContent,
+    title: str,
+    date: str,
+    logo_cid: str | None,
+) -> str:
     """Render a TargetEmailContent as a styled HTML email document."""
-    parts = [
-        "<!DOCTYPE html><html><head><meta charset='utf-8'>",
-        f"<style>{_HTML_STYLE}</style></head><body>",
-        f"<p>{content.introduction}</p>",
-        "<h2>Articles</h2>",
-    ]
-    for i, article in enumerate(content.articles):
-        if i > 0:
-            parts.append("<hr>")  # separator between articles
-        parts.append(f"<h3>{article.title}</h3>")
-        parts.append(f"<p><em>{article.source} &middot; {article.date}</em></p>")
-        parts.append(f"<p>{article.content}</p>")
-        if article.glossary:
-            parts.append("<hr>")  # separator between article content and glossary
-            for word, translation in article.glossary.items():
-                parts.append(f"<p><strong>{word}</strong>: {translation}</p>")
-    parts.append("</body></html>")
-    return "".join(parts)
+    template = _jinja_env.get_template("digest.html.j2")
+    return template.render(content=content, title=title, date=date, logo_cid=logo_cid)
 
 
 def _render_text(content: TargetEmailContent) -> str:
@@ -137,6 +123,7 @@ class DigestContent:
     subject: str
     body_text: str
     body_html: str
+    inline_images: list[InlineImage] = field(default_factory=list)
 
 
 @dataclass
@@ -252,10 +239,23 @@ class EmailProcessingPipeline(Pipeline):
             fix_prompt=fix_prompt,
         )
 
+        tz = pytz.timezone(self.config.schedule.timezone)
+        now = datetime.now(tz)
+        date_str = now.strftime("%-d %B %Y")
+
+        inline_images: list[InlineImage] = []
+        logo_cid: str | None = None
+        if _LOGO_PATH.exists():
+            logo_cid = "logo"
+            inline_images.append(InlineImage(cid=logo_cid, data=_LOGO_PATH.read_bytes()))
+
+        title = f"Your {target_language} learning digest"
+        subject = f"{title} — {date_str}"
         return DigestContent(
-            subject=f"Your {target_language} learning digest",
+            subject=subject,
             body_text=_render_text(parsed),
-            body_html=_render_html(parsed),
+            body_html=_render_html(parsed, title, date_str, logo_cid),
+            inline_images=inline_images,
         )
 
     def send_target_email(self, digest: DigestContent) -> ProcessingResult:
@@ -274,6 +274,7 @@ class EmailProcessingPipeline(Pipeline):
                     subject=digest.subject,
                     body_text=digest.body_text,
                     body_html=digest.body_html,
+                    inline_images=digest.inline_images or None,
                 )
             logger.info(f"Sent digest to {self.config.target_email.address}")
             return ProcessingResult(emails_processed=0, emails_sent=1, errors=[])

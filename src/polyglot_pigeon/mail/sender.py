@@ -2,7 +2,11 @@ import logging
 import smtplib
 import socket
 import time
+from dataclasses import dataclass
 from email.message import EmailMessage
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
 
 from polyglot_pigeon.models.configurations import TargetEmailConfig
@@ -10,6 +14,15 @@ from polyglot_pigeon.models.configurations import TargetEmailConfig
 logger = logging.getLogger(__name__)
 
 RETRYABLE_EXCEPTIONS = (socket.timeout, TimeoutError, OSError)
+
+
+@dataclass
+class InlineImage:
+    """An inline image embedded in an HTML email via CID reference."""
+
+    cid: str
+    data: bytes
+    mimetype: str = "image/png"
 
 
 class EmailSender:
@@ -68,6 +81,7 @@ class EmailSender:
         subject: str,
         body_text: str,
         body_html: Optional[str] = None,
+        inline_images: Optional[list[InlineImage]] = None,
     ) -> None:
         """
         Send an email.
@@ -76,20 +90,24 @@ class EmailSender:
             to: Recipient email address
             subject: Email subject
             body_text: Plain text body content
-            body_html: Optional HTML body content (creates multipart/alternative)
+            body_html: Optional HTML body content
+            inline_images: Optional list of images to embed via CID references
         """
         if not self._connection:
             raise RuntimeError("Not connected to SMTP server. Call connect() first.")
 
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = f"{self.config.sender_name} <{self.config.smtp_user}>"
-        msg["To"] = to
-
-        msg.set_content(body_text)
-
-        if body_html:
-            msg.add_alternative(body_html, subtype="html")
+        if body_html and inline_images:
+            msg = self._build_related_message(
+                to, subject, body_text, body_html, inline_images
+            )
+        else:
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = f"{self.config.sender_name} <{self.config.smtp_user}>"
+            msg["To"] = to
+            msg.set_content(body_text)
+            if body_html:
+                msg.add_alternative(body_html, subtype="html")
 
         last_exception: Optional[Exception] = None
         for attempt in range(self.config.retry_count + 1):
@@ -107,3 +125,33 @@ class EmailSender:
                     time.sleep(self.config.retry_delay)
 
         raise last_exception  # type: ignore[misc]
+
+    def _build_related_message(
+        self,
+        to: str,
+        subject: str,
+        body_text: str,
+        body_html: str,
+        inline_images: list[InlineImage],
+    ) -> MIMEMultipart:
+        """Build a multipart/related message with inline image attachments."""
+        related = MIMEMultipart("related")
+        related["Subject"] = subject
+        related["From"] = f"{self.config.sender_name} <{self.config.smtp_user}>"
+        related["To"] = to
+
+        alternative = MIMEMultipart("alternative")
+        alternative.attach(MIMEText(body_text, "plain", "utf-8"))
+        alternative.attach(MIMEText(body_html, "html", "utf-8"))
+        related.attach(alternative)
+
+        for img in inline_images:
+            subtype = img.mimetype.split("/")[-1]
+            mime_img = MIMEImage(img.data, subtype)
+            mime_img.add_header("Content-ID", f"<{img.cid}>")
+            mime_img.add_header(
+                "Content-Disposition", "inline", filename=f"{img.cid}.{subtype}"
+            )
+            related.attach(mime_img)
+
+        return related
