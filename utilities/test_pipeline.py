@@ -93,6 +93,12 @@ def main() -> None:
         help="Directory to save output files when using --dry-run (default: current directory)",
     )
     parser.add_argument(
+        "--prompts",
+        type=str,
+        default=None,
+        help="Path to prompt overrides YAML file (optional)",
+    )
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable verbose logging",
@@ -163,7 +169,9 @@ def main() -> None:
 
     # Build digest
     print("\nBuilding digest...")
-    pipeline = EmailProcessingPipeline()
+    pipeline = EmailProcessingPipeline(
+        prompts_path=Path(args.prompts) if args.prompts else None
+    )
     try:
         digest = pipeline.build_digest(selected)
     except Exception as e:

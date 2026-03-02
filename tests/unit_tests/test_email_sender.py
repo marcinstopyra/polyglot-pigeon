@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from polyglot_pigeon.mail import EmailSender
+from polyglot_pigeon.mail import EmailSender, InlineImage
 from polyglot_pigeon.models.configurations import TargetEmailConfig
 
 
@@ -244,3 +244,86 @@ class TestRetryMechanism:
 
         assert mock_smtp_class.call_count == 2
         assert sender._connection is mock_connection
+
+
+# ── InlineImage / CID attachment ──────────────────────────────────────────────
+
+
+class TestInlineImage:
+    def test_default_mimetype_is_png(self):
+        img = InlineImage(cid="logo", data=b"\x89PNG")
+
+        assert img.mimetype == "image/png"
+
+    def test_custom_mimetype(self):
+        img = InlineImage(cid="banner", data=b"GIF89a", mimetype="image/gif")
+
+        assert img.mimetype == "image/gif"
+
+
+class TestSendWithInlineImages:
+    def test_send_with_inline_images_uses_multipart_related(self, target_config, mock_smtp):
+        sender = EmailSender(target_config)
+        sender._connection = mock_smtp
+        img = InlineImage(cid="logo", data=b"\x89PNG\r\n\x1a\n")
+
+        sender.send(
+            to="recipient@example.com",
+            subject="With Logo",
+            body_text="Plain text",
+            body_html="<p>HTML</p>",
+            inline_images=[img],
+        )
+
+        mock_smtp.send_message.assert_called_once()
+        msg = mock_smtp.send_message.call_args[0][0]
+        assert msg.get_content_type() == "multipart/related"
+
+    def test_related_message_contains_alternative_and_image(self, target_config, mock_smtp):
+        sender = EmailSender(target_config)
+        sender._connection = mock_smtp
+        img = InlineImage(cid="logo", data=b"\x89PNG\r\n\x1a\n")
+
+        sender.send(
+            to="recipient@example.com",
+            subject="With Logo",
+            body_text="Plain",
+            body_html="<p>HTML</p>",
+            inline_images=[img],
+        )
+
+        msg = mock_smtp.send_message.call_args[0][0]
+        parts = list(msg.get_payload())
+        assert parts[0].get_content_type() == "multipart/alternative"
+        assert parts[1].get_content_type() == "image/png"
+        assert parts[1]["Content-ID"] == "<logo>"
+
+    def test_no_inline_images_uses_emailmessage(self, target_config, mock_smtp):
+        sender = EmailSender(target_config)
+        sender._connection = mock_smtp
+
+        sender.send(
+            to="recipient@example.com",
+            subject="No Logo",
+            body_text="Plain",
+            body_html="<p>HTML</p>",
+            inline_images=None,
+        )
+
+        msg = mock_smtp.send_message.call_args[0][0]
+        assert msg.get_content_type() != "multipart/related"
+
+    def test_empty_inline_images_list_uses_emailmessage(self, target_config, mock_smtp):
+        sender = EmailSender(target_config)
+        sender._connection = mock_smtp
+
+        sender.send(
+            to="recipient@example.com",
+            subject="No Logo",
+            body_text="Plain",
+            body_html="<p>HTML</p>",
+            inline_images=[],
+        )
+
+        msg = mock_smtp.send_message.call_args[0][0]
+        assert msg.get_content_type() != "multipart/related"

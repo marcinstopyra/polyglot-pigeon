@@ -5,3 +5,7 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml:ro   # credentials never baked into image
       - ./logs:/app/logs                    # persist logs on host
+      # Optional: mount a prompt overrides file and pass --prompts to the app.
+      # Create prompts.yaml on the host first, then uncomment both lines below:
+      # - ./prompts.yaml:/app/prompts.yaml:ro
+    # command: ["python", "src/polyglot_pigeon/main.py", "-c", "/app/config.yaml", "--daemon", "--prompts", "/app/prompts.yaml"]

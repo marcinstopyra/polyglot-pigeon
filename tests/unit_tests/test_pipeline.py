@@ -1,12 +1,14 @@
 """Tests for pipeline helpers."""
 
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
 from polyglot_pigeon.models.models import TargetArticle, TargetEmailContent
 from polyglot_pigeon.scheduler.pipeline import (
+    EmailProcessingPipeline,
     _parse_json_with_retry,
     _render_html,
     _render_text,
@@ -77,10 +79,18 @@ class TestStripJsonFences:
 
 # ── _render_html ──────────────────────────────────────────────────────────────
 
+_TITLE = "Your German learning digest"
+_DATE = "2 March 2026"
+
+
+def _render(*args, title=_TITLE, date=_DATE, logo_cid=None, **kwargs):
+    """Shorthand that supplies default title/date/logo_cid to _render_html."""
+    return _render_html(_digest(*args, **kwargs), title, date, logo_cid)
+
 
 class TestRenderHtml:
     def test_returns_valid_html_structure(self):
-        result = _render_html(_digest())
+        result = _render()
 
         assert result.startswith("<!DOCTYPE html>")
         assert "<html>" in result
@@ -89,67 +99,66 @@ class TestRenderHtml:
         assert "</body>" in result
 
     def test_includes_style_block(self):
-        result = _render_html(_digest())
-
-        assert "<style>" in result
+        assert "<style>" in _render()
 
     def test_includes_charset_meta(self):
-        result = _render_html(_digest())
-
-        assert "charset='utf-8'" in result
+        assert 'charset="utf-8"' in _render()
 
     def test_introduction_rendered(self):
-        result = _render_html(_digest(introduction="My intro."))
-
-        assert "My intro." in result
+        assert "My intro." in _render(introduction="My intro.")
 
     def test_article_title_in_h3(self):
-        result = _render_html(_digest(articles=[_article(title="Big News")]))
-
-        assert "<h3>Big News</h3>" in result
+        assert "<h3>Big News</h3>" in _render(articles=[_article(title="Big News")])
 
     def test_source_and_date_in_em(self):
-        result = _render_html(_digest(articles=[_article(source="BBC", date="2024-06-01")]))
+        result = _render(articles=[_article(source="BBC", date="2024-06-01")])
 
         assert "<em>BBC" in result
         assert "2024-06-01" in result
 
     def test_glossary_entries_as_paragraphs(self):
-        a = _article(glossary={"chat": "cat", "chien": "dog"})
-        result = _render_html(_digest(articles=[a]))
+        result = _render(articles=[_article(glossary={"chat": "cat", "chien": "dog"})])
 
         assert "<strong>chat</strong>: cat" in result
         assert "<strong>chien</strong>: dog" in result
 
     def test_single_article_no_leading_hr(self):
-        result = _render_html(_digest(articles=[_article(glossary={})]))
-
-        assert "<hr>" not in result
+        assert "<hr>" not in _render(articles=[_article(glossary={})])
 
     def test_single_article_with_glossary_has_one_hr(self):
-        result = _render_html(_digest(articles=[_article()]))
-
-        assert result.count("<hr>") == 1
+        assert _render(articles=[_article()]).count("<hr>") == 1
 
     def test_two_articles_hr_between_them(self):
-        result = _render_html(_digest(articles=[
-            _article(glossary={}),
-            _article(glossary={}),
-        ]))
+        result = _render(articles=[_article(glossary={}), _article(glossary={})])
 
         # one <hr> between articles, none inside (empty glossaries)
         assert result.count("<hr>") == 1
 
     def test_two_articles_with_glossaries_hr_count(self):
-        result = _render_html(_digest(articles=[_article(), _article()]))
+        result = _render(articles=[_article(), _article()])
 
         # article separator (1) + two content/glossary separators (2) = 3
         assert result.count("<hr>") == 3
 
     def test_empty_glossary_no_extra_hr(self):
-        result = _render_html(_digest(articles=[_article(glossary={})]))
+        assert _render(articles=[_article(glossary={})]).count("<hr>") == 0
 
-        assert result.count("<hr>") == 0
+    def test_header_contains_title(self):
+        result = _render(title="Your French digest")
+
+        assert "Your French digest" in result
+        assert 'class="header"' in result
+
+    def test_header_contains_date(self):
+        assert "15 January 2025" in _render(date="15 January 2025")
+
+    def test_logo_cid_used_in_img_src(self):
+        result = _render(logo_cid="logo")
+
+        assert 'src="cid:logo"' in result
+
+    def test_no_img_when_logo_cid_is_none(self):
+        assert "<img" not in _render(logo_cid=None)
 
 
 # ── _render_text ──────────────────────────────────────────────────────────────
@@ -261,3 +270,81 @@ class TestParseJsonWithRetry:
 
         assert isinstance(result, TargetEmailContent)
         assert client.complete.call_count == 3
+
+
+# ── EmailProcessingPipeline — prompts_path ────────────────────────────────────
+
+
+def _mock_config():
+    config = MagicMock()
+    config.language.known.name = "english"
+    config.language.target.name = "german"
+    config.language.level.name = "B1"
+    config.schedule.timezone = "UTC"
+    return config
+
+
+class TestEmailProcessingPipelinePromptsPath:
+    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
+    def test_default_prompts_path_is_none(self, mock_get_config):
+        mock_get_config.return_value = _mock_config()
+
+        pipeline = EmailProcessingPipeline()
+
+        assert pipeline._prompts_path is None
+
+    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
+    def test_custom_prompts_path_stored(self, mock_get_config, tmp_path):
+        mock_get_config.return_value = _mock_config()
+        prompts_file = tmp_path / "prompts.yaml"
+
+        pipeline = EmailProcessingPipeline(prompts_path=prompts_file)
+
+        assert pipeline._prompts_path == prompts_file
+
+    @patch("polyglot_pigeon.scheduler.pipeline.PromptManager")
+    @patch("polyglot_pigeon.scheduler.pipeline.create_llm_client")
+    @patch("polyglot_pigeon.scheduler.pipeline.ContentCleaner")
+    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
+    def test_prompts_path_forwarded_to_prompt_manager(
+        self, mock_get_config, mock_cleaner_cls, mock_llm_factory, mock_pm_cls, tmp_path
+    ):
+        mock_get_config.return_value = _mock_config()
+        mock_cleaner_cls.return_value.clean.return_value = [
+            MagicMock(subject="News", sender="test@example.com", body="Some content.")
+        ]
+        mock_pm_cls.return_value.get.return_value = "prompt text"
+        mock_llm = MagicMock()
+        mock_llm.complete.return_value = LLMResponse(
+            content=_digest().model_dump_json(), model="mock", stop_reason="end_turn"
+        )
+        mock_llm_factory.return_value = mock_llm
+
+        prompts_file = tmp_path / "prompts.yaml"
+        pipeline = EmailProcessingPipeline(prompts_path=prompts_file)
+        pipeline.build_digest([MagicMock()])
+
+        mock_pm_cls.assert_called_once_with(overrides_path=prompts_file)
+
+    @patch("polyglot_pigeon.scheduler.pipeline.PromptManager")
+    @patch("polyglot_pigeon.scheduler.pipeline.create_llm_client")
+    @patch("polyglot_pigeon.scheduler.pipeline.ContentCleaner")
+    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
+    def test_none_prompts_path_forwarded_to_prompt_manager(
+        self, mock_get_config, mock_cleaner_cls, mock_llm_factory, mock_pm_cls
+    ):
+        mock_get_config.return_value = _mock_config()
+        mock_cleaner_cls.return_value.clean.return_value = [
+            MagicMock(subject="News", sender="test@example.com", body="Some content.")
+        ]
+        mock_pm_cls.return_value.get.return_value = "prompt text"
+        mock_llm = MagicMock()
+        mock_llm.complete.return_value = LLMResponse(
+            content=_digest().model_dump_json(), model="mock", stop_reason="end_turn"
+        )
+        mock_llm_factory.return_value = mock_llm
+
+        pipeline = EmailProcessingPipeline(prompts_path=None)
+        pipeline.build_digest([MagicMock()])
+
+        mock_pm_cls.assert_called_once_with(overrides_path=None)

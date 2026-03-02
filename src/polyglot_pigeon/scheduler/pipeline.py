@@ -178,8 +178,9 @@ class EmailProcessingPipeline(Pipeline):
     3. Send to target email via SMTP
     """
 
-    def __init__(self):
+    def __init__(self, prompts_path: Path | None = None):
         self.config = get_config()
+        self._prompts_path = prompts_path
 
     def build_digest(self, emails: list[Email]) -> DigestContent:
         """Clean emails, call LLM, parse response, and render to email formats.
@@ -207,7 +208,7 @@ class EmailProcessingPipeline(Pipeline):
         target_language = lang.target.name.title()
         level = lang.level.name
 
-        prompts = PromptManager()
+        prompts = PromptManager(overrides_path=self._prompts_path)
         language_extra = prompts.get("language_extra")
         article_structure_extra = prompts.get("article_structure_extra")
         json_schema = json.dumps(TargetEmailContent.model_json_schema(), indent=2)
