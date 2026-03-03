@@ -63,6 +63,12 @@ class _HTMLTextExtractor(HTMLParser):
     """Simple HTML parser that extracts visible text."""
 
     _SKIP_TAGS = frozenset({"script", "style", "figcaption"})
+    # Void elements have no closing tag and cannot contain children, so pushing
+    # them onto the skip stack would permanently lock it.
+    _VOID_ELEMENTS = frozenset(
+        {"area", "base", "br", "col", "embed", "hr", "img", "input",
+         "link", "meta", "param", "source", "track", "wbr"}
+    )
 
     def __init__(self):
         super().__init__()
@@ -70,7 +76,7 @@ class _HTMLTextExtractor(HTMLParser):
         self._skip_stack: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in self._SKIP_TAGS or self._is_hidden(attrs):
+        if (tag in self._SKIP_TAGS or self._is_hidden(attrs)) and tag not in self._VOID_ELEMENTS:
             self._skip_stack.append(tag)
         elif not self._skip_stack:
             if tag == "img":

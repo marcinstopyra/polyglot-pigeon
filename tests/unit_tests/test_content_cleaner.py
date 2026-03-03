@@ -199,6 +199,22 @@ class TestContentCleaner:
         assert "After" in results[0].body
         assert "nice photo" not in results[0].body
 
+    def test_hidden_void_element_does_not_lock_parser(self):
+        # Hidden <img> tags (e.g. dark-mode icon variants) are void elements with
+        # no closing tag. They must not permanently lock the skip stack and swallow
+        # all subsequent content.
+        cleaner = ContentCleaner()
+        html = (
+            '<img src="icon-light.png" style="display:none">'
+            "<p>Actual article content</p>"
+        )
+        email = _make_email(body_text="", body_html=html)
+
+        results = cleaner.clean([email])
+
+        assert len(results) == 1
+        assert "Actual article content" in results[0].body
+
     def test_strips_tracking_urls(self):
         cleaner = ContentCleaner()
         text = "Check this out https://list-manage.com/track/click?u=abc&id=xyz for more info."

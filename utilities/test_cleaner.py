@@ -133,6 +133,19 @@ def main() -> None:
             continue
 
         selected = emails[idx - 1]
+
+        today = date.today().isoformat()
+        short_id = uuid.uuid4().hex[:8]
+        base = f"email_{today}_{short_id}"
+        if args.save_raw:
+            if selected.body_html:
+                raw_path = output_dir / f"{base}_original.html"
+                raw_path.write_text(selected.body_html)
+            else:
+                raw_path = output_dir / f"{base}_original.txt"
+                raw_path.write_text(selected.body_text or "")
+            print(f"  Original → {raw_path}")
+
         print(f"\nCleaning: {selected.subject}")
 
         cleaned = cleaner.clean([selected])
@@ -148,22 +161,11 @@ def main() -> None:
         output += "---\n\n"
         output += result.body
 
-        today = date.today().isoformat()
-        short_id = uuid.uuid4().hex[:8]
-        base = f"email_{today}_{short_id}"
 
         cleaned_path = output_dir / f"{base}_cleaned.md"
         cleaned_path.write_text(output)
         print(f"  Cleaned → {cleaned_path}")
 
-        if args.save_raw:
-            if selected.body_html:
-                raw_path = output_dir / f"{base}_original.html"
-                raw_path.write_text(selected.body_html)
-            else:
-                raw_path = output_dir / f"{base}_original.txt"
-                raw_path.write_text(selected.body_text or "")
-            print(f"  Original → {raw_path}")
 
         print()
 
