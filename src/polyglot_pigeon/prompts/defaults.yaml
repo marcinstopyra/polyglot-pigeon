@@ -13,6 +13,7 @@ system: |
   - Include a glossary of words and phrases that may be unfamiliar to a
     {level} learner, with translations to {known_language}
   {language_extra}
+  {tone_extra}
 
   Also write a short journalistic introduction in {target_language} at {level}
   level (2-4 sentences) that summarizes all the topics covered.
@@ -42,5 +43,7 @@ json_fix: |
 ## User-customizable extras (empty by default, override during deployment)
 
 language_extra: ""
+
+tone_extra: ""
 
 article_structure_extra: ""

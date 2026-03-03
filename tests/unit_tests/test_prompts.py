@@ -15,6 +15,7 @@ class TestPromptManager:
         assert "transform_user" in prompts
         assert "json_fix" in prompts
         assert "language_extra" in prompts
+        assert "tone_extra" in prompts
         assert "article_structure_extra" in prompts
 
     def test_get_with_placeholders(self):
@@ -25,6 +26,7 @@ class TestPromptManager:
             target_language="German",
             level="B1",
             language_extra="",
+            tone_extra="",
             article_structure_extra="",
             json_schema="{}",
         )
@@ -74,11 +76,27 @@ class TestPromptManager:
             target_language="German",
             level="B1",
             language_extra="Avoid using Präteritum.",
+            tone_extra="",
             article_structure_extra="",
             json_schema="{}",
         )
 
         assert "Avoid using Präteritum." in result
+
+    def test_tone_extra_injected_into_system(self):
+        manager = PromptManager()
+        result = manager.get(
+            "system",
+            known_language="English",
+            target_language="German",
+            level="B1",
+            language_extra="",
+            tone_extra="Tell the news in a gossipy, informal tone.",
+            article_structure_extra="",
+            json_schema="{}",
+        )
+
+        assert "Tell the news in a gossipy, informal tone." in result
 
     def test_article_structure_extra_injected(self):
         manager = PromptManager()
@@ -88,6 +106,7 @@ class TestPromptManager:
             target_language="German",
             level="B1",
             language_extra="",
+            tone_extra="",
             article_structure_extra="Include example sentences for each glossary word.",
             json_schema="{}",
         )

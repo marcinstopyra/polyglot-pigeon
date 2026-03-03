@@ -28,6 +28,9 @@ class Language(Enum):
     ENGLISH = auto()
     GERMAN = auto()
     RUSSIAN = auto()
+    ITALIAN = auto()
+    SPANISH = auto()
+    TURKISH = auto()
 
 
 class LanguageLevel(Enum):

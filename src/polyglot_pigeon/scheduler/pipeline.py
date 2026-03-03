@@ -210,6 +210,7 @@ class EmailProcessingPipeline(Pipeline):
 
         prompts = PromptManager(overrides_path=self._prompts_path)
         language_extra = prompts.get("language_extra")
+        tone_extra = prompts.get("tone_extra")
         article_structure_extra = prompts.get("article_structure_extra")
         json_schema = json.dumps(TargetEmailContent.model_json_schema(), indent=2)
 
@@ -219,6 +220,7 @@ class EmailProcessingPipeline(Pipeline):
             target_language=target_language,
             level=level,
             language_extra=language_extra,
+            tone_extra=tone_extra,
             article_structure_extra=article_structure_extra,
             json_schema=json_schema,
         )
