@@ -17,7 +17,7 @@ from polyglot_pigeon.scheduler.pipeline import (
     ProcessingResult,
 )
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class EmailScheduler:
@@ -51,7 +51,7 @@ class EmailScheduler:
 
     def _handle_shutdown(self, signum: int, frame) -> None:
         """Handle shutdown signals gracefully."""
-        logger.info(f"Received signal {signum}, shutting down...")
+        log.info(f"Received signal {signum}, shutting down...")
         self._running = False
 
     def _get_timezone(self) -> ZoneInfo:
@@ -69,7 +69,7 @@ class EmailScheduler:
         Returns:
             ProcessingResult from the pipeline
         """
-        logger.info("Starting one-shot email processing")
+        log.info("Starting one-shot email processing")
 
         emails = self._fetch_emails()
         result = self.pipeline.process(emails)
@@ -77,7 +77,7 @@ class EmailScheduler:
         if result.emails_processed > 0 and self.config.source_email.mark_as_read:
             self._mark_emails_processed([e.uid for e in emails])
 
-        logger.info(
+        log.info(
             f"Processing complete: {result.emails_processed} processed, "
             f"{result.emails_sent} sent, {len(result.errors)} errors"
         )
@@ -92,15 +92,15 @@ class EmailScheduler:
         """Mark emails as processed (read)."""
         with EmailReader(self.config.source_email) as reader:
             reader.mark_as_read(uids)
-            logger.debug(f"Marked {len(uids)} emails as read")
+            log.debug(f"Marked {len(uids)} emails as read")
 
     def _job(self) -> None:
         """Scheduled job wrapper."""
-        logger.info(f"Scheduled job triggered at {self._get_current_time_in_tz()}")
+        log.info(f"Scheduled job triggered at {self._get_current_time_in_tz()}")
         try:
             self.run_once()
         except Exception as e:
-            logger.error(f"Error in scheduled job: {e}", exc_info=True)
+            log.error(f"Error in scheduled job: {e}", exc_info=True)
 
     def start(self) -> None:
         """
@@ -110,7 +110,7 @@ class EmailScheduler:
         Handles SIGINT and SIGTERM for graceful shutdown.
         """
         if not self.config.schedule.enabled:
-            logger.warning("Scheduler is disabled in configuration")
+            log.warning("Scheduler is disabled in configuration")
             return
 
         self._setup_signal_handlers()
@@ -118,8 +118,8 @@ class EmailScheduler:
         schedule_time = self.config.schedule.time
         tz_name = self.config.schedule.timezone
 
-        logger.info(f"Starting scheduler: {schedule_time} {tz_name}")
-        logger.info(f"Current time in {tz_name}: {self._get_current_time_in_tz()}")
+        log.info(f"Starting scheduler: {schedule_time} {tz_name}")
+        log.info(f"Current time in {tz_name}: {self._get_current_time_in_tz()}")
 
         schedule.clear()
         schedule.every().day.at(schedule_time, tz_name).do(self._job)
@@ -129,7 +129,7 @@ class EmailScheduler:
             schedule.run_pending()
             time.sleep(30)
 
-        logger.info("Scheduler stopped")
+        log.info("Scheduler stopped")
 
     def stop(self) -> None:
         """Stop the scheduler daemon."""

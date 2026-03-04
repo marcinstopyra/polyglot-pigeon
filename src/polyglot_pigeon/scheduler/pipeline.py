@@ -20,7 +20,7 @@ from polyglot_pigeon.mail import EmailSender, InlineImage
 from polyglot_pigeon.models.models import Email, TargetEmailContent
 from polyglot_pigeon.prompts import PromptManager
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 MAX_JSON_RETRIES = 3
 
@@ -67,7 +67,7 @@ def _parse_json_with_retry(
     # Retry loop — ask LLM to fix its own output
     current = raw
     for attempt in range(max_retries):
-        logger.warning(f"JSON parse failed, retry {attempt + 1}/{max_retries}")
+        log.warning(f"JSON parse failed, retry {attempt + 1}/{max_retries}")
         fix_response = llm_client.complete(
             [
                 *original_messages,
@@ -157,9 +157,9 @@ class PlaceholderPipeline(Pipeline):
 
     def process(self, emails: list[Email]) -> ProcessingResult:
         """Log emails without actual processing (for development/testing)."""
-        logger.info(f"PlaceholderPipeline: Would process {len(emails)} emails")
+        log.info(f"PlaceholderPipeline: Would process {len(emails)} emails")
         for email in emails:
-            logger.debug(f"  - {email.subject} from {email.sender}")
+            log.debug(f"  - {email.subject} from {email.sender}")
 
         return ProcessingResult(
             emails_processed=len(emails),
@@ -228,7 +228,7 @@ class EmailProcessingPipeline(Pipeline):
         fix_prompt = prompts.get("json_fix", json_schema=json_schema)
 
         llm_client = create_llm_client(self.config.llm)
-        logger.info(f"Transforming {len(cleaned)} articles via LLM")
+        log.info(f"Transforming {len(cleaned)} articles via LLM")
         messages = [
             LLMMessage(role=MessageRole.SYSTEM, content=system_prompt),
             LLMMessage(role=MessageRole.USER, content=user_prompt),
@@ -279,11 +279,11 @@ class EmailProcessingPipeline(Pipeline):
                     body_html=digest.body_html,
                     inline_images=digest.inline_images or None,
                 )
-            logger.info(f"Sent digest to {self.config.target_email.address}")
+            log.info(f"Sent digest to {self.config.target_email.address}")
             return ProcessingResult(emails_processed=0, emails_sent=1, errors=[])
         except Exception as e:
             error_msg = f"Failed to send email: {e}"
-            logger.error(error_msg)
+            log.error(error_msg)
             return ProcessingResult(emails_processed=0, emails_sent=0, errors=[error_msg])
 
     def process(self, emails: list[Email]) -> ProcessingResult:
@@ -293,14 +293,14 @@ class EmailProcessingPipeline(Pipeline):
         directly when you need to intercept the digest before sending (e.g. dry-run).
         """
         if not emails:
-            logger.info("No emails to process")
+            log.info("No emails to process")
             return ProcessingResult(0, 0, [])
 
         try:
             digest = self.build_digest(emails)
         except Exception as e:
             error_msg = f"Pipeline failed: {e}"
-            logger.error(error_msg)
+            log.error(error_msg)
             return ProcessingResult(
                 emails_processed=len(emails), emails_sent=0, errors=[error_msg]
             )

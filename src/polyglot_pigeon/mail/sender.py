@@ -11,7 +11,7 @@ from typing import Optional
 
 from polyglot_pigeon.models.configurations import TargetEmailConfig
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 RETRYABLE_EXCEPTIONS = (socket.timeout, TimeoutError, OSError)
 
@@ -34,7 +34,7 @@ class EmailSender:
 
     def connect(self) -> None:
         """Establish connection to the SMTP server using STARTTLS."""
-        logger.info(f"Connecting to SMTP server: {self.config.smtp_server}")
+        log.info(f"Connecting to SMTP server: {self.config.smtp_server}")
 
         last_exception: Optional[Exception] = None
         for attempt in range(self.config.retry_count + 1):
@@ -44,12 +44,12 @@ class EmailSender:
                 )
                 self._connection.starttls()
                 self._connection.login(self.config.smtp_user, self.config.smtp_password)
-                logger.info("Successfully connected to SMTP server")
+                log.info("Successfully connected to SMTP server")
                 return
             except RETRYABLE_EXCEPTIONS as e:
                 last_exception = e
                 if attempt < self.config.retry_count:
-                    logger.warning(
+                    log.warning(
                         f"Connection attempt {attempt + 1} failed: {e}. "
                         f"Retrying in {self.config.retry_delay}s..."
                     )
@@ -62,9 +62,9 @@ class EmailSender:
         if self._connection:
             try:
                 self._connection.quit()
-                logger.info("Disconnected from SMTP server")
+                log.info("Disconnected from SMTP server")
             except smtplib.SMTPException as e:
-                logger.warning(f"Error during disconnect: {e}")
+                log.warning(f"Error during disconnect: {e}")
             finally:
                 self._connection = None
 
@@ -113,12 +113,12 @@ class EmailSender:
         for attempt in range(self.config.retry_count + 1):
             try:
                 self._connection.send_message(msg)
-                logger.info(f"Email sent to {to}: {subject}")
+                log.info(f"Email sent to {to}: {subject}")
                 return
             except RETRYABLE_EXCEPTIONS as e:
                 last_exception = e
                 if attempt < self.config.retry_count:
-                    logger.warning(
+                    log.warning(
                         f"Send attempt {attempt + 1} failed: {e}. "
                         f"Retrying in {self.config.retry_delay}s..."
                     )

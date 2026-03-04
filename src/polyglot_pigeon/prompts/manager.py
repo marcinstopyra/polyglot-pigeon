@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 _DEFAULTS_PATH = Path(__file__).parent / "defaults.yaml"
 
@@ -24,7 +24,7 @@ class PromptManager:
         if overrides_path is not None:
             overrides = self._load_yaml(Path(overrides_path))
             self._prompts.update(overrides)
-            logger.info(f"Loaded prompt overrides from {overrides_path}")
+            log.info(f"Loaded prompt overrides from {overrides_path}")
 
     def get(self, name: str, **kwargs: str) -> str:
         """Get a prompt by name with placeholders filled.

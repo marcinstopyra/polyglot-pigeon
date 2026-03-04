@@ -7,7 +7,7 @@ from html.parser import HTMLParser
 
 from polyglot_pigeon.models.models import Email
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 _MAX_CONSECUTIVE_BLANK_LINES = 2
 _BOILERPLATE_TAIL_THRESHOLD = 0.6
@@ -134,7 +134,7 @@ class ContentCleaner:
                     )
                 )
             else:
-                logger.warning(f"Email '{email.subject}' had no content after cleaning")
+                log.warning(f"Email '{email.subject}' had no content after cleaning")
 
         return results
 

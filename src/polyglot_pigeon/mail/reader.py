@@ -8,7 +8,7 @@ from email.message import Message
 from polyglot_pigeon.models.configurations import SourceEmailConfig
 from polyglot_pigeon.models.models import Email
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class EmailReader:
@@ -20,21 +20,21 @@ class EmailReader:
 
     def connect(self) -> None:
         """Establish connection to the IMAP server."""
-        logger.info(f"Connecting to IMAP server: {self.config.imap_server}")
+        log.info(f"Connecting to IMAP server: {self.config.imap_server}")
         self._connection = imaplib.IMAP4_SSL(
             self.config.imap_server, self.config.imap_port
         )
         self._connection.login(self.config.address, self.config.app_password)
-        logger.info("Successfully connected to IMAP server")
+        log.info("Successfully connected to IMAP server")
 
     def disconnect(self) -> None:
         """Close the IMAP connection."""
         if self._connection:
             try:
                 self._connection.logout()
-                logger.info("Disconnected from IMAP server")
+                log.info("Disconnected from IMAP server")
             except imaplib.IMAP4.error as e:
-                logger.warning(f"Error during disconnect: {e}")
+                log.warning(f"Error during disconnect: {e}")
             finally:
                 self._connection = None
 
@@ -65,15 +65,15 @@ class EmailReader:
 
         # Build search criteria
         search_criteria = self._build_search_criteria(unread_only)
-        logger.debug(f"Searching with criteria: {search_criteria}")
+        log.debug(f"Searching with criteria: {search_criteria}")
 
         status, message_ids = self._connection.search(None, search_criteria)
         if status != "OK":
-            logger.error(f"Failed to search emails: {status}")
+            log.error(f"Failed to search emails: {status}")
             return []
 
         email_uids = message_ids[0].split()
-        logger.info(f"Found {len(email_uids)} emails matching criteria")
+        log.info(f"Found {len(email_uids)} emails matching criteria")
 
         emails = []
         for uid in email_uids:
@@ -122,7 +122,7 @@ class EmailReader:
                 body_html=self._get_body(msg, "text/html"),
             )
         except Exception as e:
-            logger.error(f"Error fetching email {uid}: {e}")
+            log.error(f"Error fetching email {uid}: {e}")
             return None
 
     def _decode_header(self, header_value: str | None) -> str:
@@ -148,7 +148,7 @@ class EmailReader:
             parsed = email.utils.parsedate_to_datetime(date_str)
             return parsed
         except (ValueError, TypeError):
-            logger.warning(f"Could not parse date: {date_str}")
+            log.warning(f"Could not parse date: {date_str}")
             return datetime.now(timezone.utc)
 
     def _get_body(self, msg: Message, content_type: str) -> str:
@@ -182,7 +182,7 @@ class EmailReader:
         self._connection.select(folder)
         for uid in uids:
             self._connection.store(uid.encode(), "+FLAGS", "\\Seen")
-            logger.debug(f"Marked email {uid} as read")
+            log.debug(f"Marked email {uid} as read")
 
     def add_label(self, uids: list[str], label: str, folder: str = "INBOX") -> None:
         """
@@ -200,6 +200,6 @@ class EmailReader:
         for uid in uids:
             try:
                 self._connection.store(uid.encode(), "+X-GM-LABELS", f'"{label}"')
-                logger.debug(f"Added label '{label}' to email {uid}")
+                log.debug(f"Added label '{label}' to email {uid}")
             except imaplib.IMAP4.error as e:
-                logger.warning(f"Could not add label to {uid}: {e}")
+                log.warning(f"Could not add label to {uid}: {e}")

@@ -5,7 +5,7 @@ from pathlib import Path
 from polyglot_pigeon.config import ConfigLoader, get_config
 from polyglot_pigeon.scheduler import EmailProcessingPipeline, EmailScheduler
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def setup_logger(level: int = logging.INFO) -> None:
@@ -62,21 +62,21 @@ def main() -> None:
     config_loader.load(config_path=str(args.config))
     config = get_config()
 
-    logger.debug(f"Loaded config: {config}")
+    log.debug(f"Loaded config: {config}")
 
     pipeline = EmailProcessingPipeline(prompts_path=args.prompts)
     scheduler = EmailScheduler(config=config, pipeline=pipeline)
 
     if args.daemon:
-        logger.info("Starting in daemon mode")
+        log.info("Starting in daemon mode")
         scheduler.start()
     elif args.run_once:
-        logger.info("Running one-shot processing")
+        log.info("Running one-shot processing")
         result = scheduler.run_once()
         if result.errors:
-            logger.error(f"Completed with {len(result.errors)} errors")
+            log.error(f"Completed with {len(result.errors)} errors")
     else:
-        logger.info(
+        log.info(
             "Use --daemon for scheduled processing or --run-once for immediate processing"
         )
 

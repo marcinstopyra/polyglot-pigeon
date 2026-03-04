@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator, Iterator
 from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
 from polyglot_pigeon.models.configurations import LLMConfig
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class LLMClient(ABC):
@@ -74,7 +74,7 @@ class ClaudeClient(LLMClient):
         if self.config.temperature is not None:
             kwargs["temperature"] = self.config.temperature
 
-        logger.debug(f"Sending request to Claude: {self.config.model}")
+        log.debug(f"Sending request to Claude: {self.config.model}")
         response = client.messages.create(**kwargs)
 
         return LLMResponse(
@@ -116,7 +116,7 @@ class ClaudeClient(LLMClient):
         if self.config.temperature is not None:
             kwargs["temperature"] = self.config.temperature
 
-        logger.debug(f"Sending async request to Claude: {self.config.model}")
+        log.debug(f"Sending async request to Claude: {self.config.model}")
         response = await client.messages.create(**kwargs)
 
         return LLMResponse(
@@ -153,7 +153,7 @@ class OpenAICompatibleClient(LLMClient):
             {"role": msg.role.name.lower(), "content": msg.content} for msg in messages
         ]
 
-        logger.debug(
+        log.debug(
             f"Sending request to {self.config.url or 'OpenAI'}: {self.config.model}"
         )
         response = client.chat.completions.create(
@@ -189,7 +189,7 @@ class OpenAICompatibleClient(LLMClient):
             {"role": msg.role.name.lower(), "content": msg.content} for msg in messages
         ]
 
-        logger.debug(
+        log.debug(
             f"Sending async request to {self.config.url or 'OpenAI'}: {self.config.model}"
         )
         response = await client.chat.completions.create(
@@ -216,10 +216,10 @@ def create_llm_client(config: LLMConfig) -> LLMClient:
     OpenAICompatibleClient (works with OpenAI, Perplexity, Ollama, etc.).
     """
     if config.provider and config.provider.lower() == "claude":
-        logger.info(f"Creating Claude client: {config.model}")
+        log.info(f"Creating Claude client: {config.model}")
         return ClaudeClient(config)
 
-    logger.info(
+    log.info(
         f"Creating OpenAI-compatible client: {config.model}"
         f" @ {config.url or 'OpenAI default'}"
     )
