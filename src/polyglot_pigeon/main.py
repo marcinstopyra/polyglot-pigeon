@@ -8,11 +8,17 @@ from polyglot_pigeon.scheduler import EmailProcessingPipeline, EmailScheduler
 log = logging.getLogger(__name__)
 
 
-def setup_logger(level: int = logging.INFO) -> None:
+def setup_logger(level: int = logging.INFO, log_file: Path | None = None) -> None:
     """Configure logging for the application."""
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if log_file is not None:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.FileHandler(log_file))
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=handlers,
+        force=True,
     )
     # Suppress verbose request/response body logging from HTTP client libraries
     for noisy in ("httpx", "httpcore", "anthropic", "openai"):
@@ -55,12 +61,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    log_level = logging.DEBUG if args.verbose else logging.INFO
-    setup_logger(level=log_level)
-
     config_loader = ConfigLoader()
     config_loader.load(config_path=str(args.config))
     config = get_config()
+
+    log_level = logging.DEBUG if args.verbose else getattr(logging, config.logging.level.upper(), logging.INFO)
+    setup_logger(level=log_level, log_file=config.logging.file)
 
     log.debug(f"Loaded config: {config}")
 
