@@ -20,7 +20,9 @@ _BOILERPLATE_PATTERNS = [
     re.compile(r"(?i)explore\s+(other\s+)?newsletters.*", re.DOTALL),
     re.compile(r"(?i)become\s+a\s+member.*", re.DOTALL),
     re.compile(r"(?i)(take|complete|fill\s+out)\s+(our|the)\s+survey.*", re.DOTALL),
-    re.compile(r"(?i)follow\s+us\s+on\s+(twitter|x|facebook|instagram|linkedin).*", re.DOTALL),
+    re.compile(
+        r"(?i)follow\s+us\s+on\s+(twitter|x|facebook|instagram|linkedin).*", re.DOTALL
+    ),
     # --- Line-level removals (applied everywhere) ---
     re.compile(r"(?i)view\s+(this\s+)?(email\s+)?in\s+(your\s+)?browser.*"),
     re.compile(r"(?i)manage\s+(your\s+)?preferences.*"),
@@ -66,8 +68,22 @@ class _HTMLTextExtractor(HTMLParser):
     # Void elements have no closing tag and cannot contain children, so pushing
     # them onto the skip stack would permanently lock it.
     _VOID_ELEMENTS = frozenset(
-        {"area", "base", "br", "col", "embed", "hr", "img", "input",
-         "link", "meta", "param", "source", "track", "wbr"}
+        {
+            "area",
+            "base",
+            "br",
+            "col",
+            "embed",
+            "hr",
+            "img",
+            "input",
+            "link",
+            "meta",
+            "param",
+            "source",
+            "track",
+            "wbr",
+        }
     )
 
     def __init__(self):
@@ -76,7 +92,9 @@ class _HTMLTextExtractor(HTMLParser):
         self._skip_stack: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if (tag in self._SKIP_TAGS or self._is_hidden(attrs)) and tag not in self._VOID_ELEMENTS:
+        if (
+            tag in self._SKIP_TAGS or self._is_hidden(attrs)
+        ) and tag not in self._VOID_ELEMENTS:
             self._skip_stack.append(tag)
         elif not self._skip_stack:
             if tag == "img":

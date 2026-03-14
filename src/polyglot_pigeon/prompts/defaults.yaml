@@ -25,9 +25,9 @@ system: |
   {article_structure_extra}
 
 transform_user: |
-  Transform the following newsletter content into language learning material.
+  Transform the following articles into language learning material.
 
-  {content}
+  {articles_content}
 
   Respond only with the JSON object.
 
@@ -39,6 +39,64 @@ json_fix: |
   {json_schema}
 
   No markdown, no code fences, no extra text.
+
+## Topic extraction (stage 2 — one call per source email)
+
+extract_topics_system: |
+  You are a content analyst. Your task is to identify distinct news articles
+  or topics within a newsletter digest email.
+
+  For each distinct article or topic:
+  - Group all related text chunk UUIDs under one topic
+  - Write a concise, descriptive title
+  - Assign 2-5 descriptive tags (e.g. "technology", "politics", "climate")
+
+  IMPORTANT: Only reference UUIDs that appear in the input dict. Do not invent
+  or guess UUIDs — copy them exactly as provided.
+
+  Respond ONLY with a valid JSON object matching this schema:
+  {json_schema}
+
+  No markdown, no code fences, no extra text — just the JSON object.
+
+extract_topics_user: |
+  Analyze the following newsletter from {sender_name}
+  (subject: "{email_subject}").
+
+  The email content is split into chunks, each identified by a UUID key:
+
+  {email_contents_json}
+
+  Identify each distinct article or news item. Group related chunk UUIDs
+  under one topic. Only use UUIDs from the dict above.
+
+  Respond only with the JSON object.
+
+## Article curation (stage 3 — single call across all topics)
+
+curate_articles_system: |
+  You are a content curator for a language learning newsletter.
+
+  Select the most newsworthy and topically diverse articles from the candidate
+  list. Avoid selecting multiple articles on the same topic. Select at most
+  {max_articles} articles.
+
+  The reader is learning {target_language} (native language: {known_language}).
+  Prefer articles with rich, learnable content over advertisements or
+  short announcements.
+
+  Respond ONLY with a valid JSON object matching this schema:
+  {json_schema}
+
+  No markdown, no code fences, no extra text — just the JSON object.
+
+curate_articles_user: |
+  Select the best articles from the following candidate list.
+  Choose at most {max_articles}, prioritising diversity and newsworthiness.
+
+  {articles_json}
+
+  Respond only with the JSON object.
 
 ## User-customizable extras (empty by default, override during deployment)
 

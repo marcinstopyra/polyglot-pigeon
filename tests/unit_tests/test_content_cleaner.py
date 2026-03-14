@@ -258,7 +258,9 @@ class TestContentCleaner:
 
     def test_strips_promotional_footer_become_member(self):
         cleaner = ContentCleaner()
-        email = _make_email(body_text=f"{_PAD}\nBecome a member to access premium articles.")
+        email = _make_email(
+            body_text=f"{_PAD}\nBecome a member to access premium articles."
+        )
 
         results = cleaner.clean([email])
 
@@ -290,7 +292,9 @@ class TestContentCleaner:
 
     def test_strips_ui_label_advertisement(self):
         cleaner = ContentCleaner()
-        email = _make_email(body_text="Article text.\nADVERTISEMENT\nMore article text.")
+        email = _make_email(
+            body_text="Article text.\nADVERTISEMENT\nMore article text."
+        )
 
         results = cleaner.clean([email])
 

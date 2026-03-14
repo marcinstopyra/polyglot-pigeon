@@ -71,6 +71,11 @@ def test_full_config():
             "retry_count": 3,
             "retry_delay": 300.0,
         },
+        "pipeline": {
+            "max_articles_in_final_email": 7,
+            "min_chunk_chars": 80,
+            "max_chunks_per_email": 60,
+        },
     }
 
 
@@ -243,7 +248,11 @@ class TestConfigLoader:
                 "address": "source@example.com",
                 "app_password": "secret123",
             },
-            "llm": {"provider": "clAUde", "api_key": "sk-test", "model": "claude-haiku-4-5-20251001"},
+            "llm": {
+                "provider": "clAUde",
+                "api_key": "sk-test",
+                "model": "claude-haiku-4-5-20251001",
+            },
             "language": {"known": "English", "target": "German", "level": "b2"},
             "target_email": {
                 "address": "target@example.com",

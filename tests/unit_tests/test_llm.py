@@ -13,7 +13,6 @@ from polyglot_pigeon.llm import (
 )
 from polyglot_pigeon.models.configurations import LLMConfig
 
-
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
 
@@ -136,10 +135,12 @@ class TestClaudeClient:
         mock_api.messages.create.return_value = mock_response
 
         with patch.dict(sys.modules, {"anthropic": mock_anthropic}):
-            response = client.complete([
-                LLMMessage(role=MessageRole.SYSTEM, content="Be helpful"),
-                LLMMessage(role=MessageRole.USER, content="Hi"),
-            ])
+            response = client.complete(
+                [
+                    LLMMessage(role=MessageRole.SYSTEM, content="Be helpful"),
+                    LLMMessage(role=MessageRole.USER, content="Hi"),
+                ]
+            )
 
         assert response.content == "Hello!"
         assert response.input_tokens == 10
@@ -157,10 +158,12 @@ class TestClaudeClient:
         )
 
         with patch.dict(sys.modules, {"anthropic": mock_anthropic}):
-            client.complete([
-                LLMMessage(role=MessageRole.SYSTEM, content="Be helpful"),
-                LLMMessage(role=MessageRole.USER, content="Hi"),
-            ])
+            client.complete(
+                [
+                    LLMMessage(role=MessageRole.SYSTEM, content="Be helpful"),
+                    LLMMessage(role=MessageRole.USER, content="Hi"),
+                ]
+            )
 
         call_kwargs = mock_api.messages.create.call_args[1]
         assert call_kwargs["system"] == "Be helpful"
@@ -204,7 +207,9 @@ class TestOpenAICompatibleClient:
         mock_api.chat.completions.create.return_value = mock_response
 
         with patch.dict(sys.modules, {"openai": mock_openai}):
-            response = client.complete([LLMMessage(role=MessageRole.USER, content="Hi")])
+            response = client.complete(
+                [LLMMessage(role=MessageRole.USER, content="Hi")]
+            )
 
         assert response.content == "Hello!"
         assert response.model == "gpt-4o"
@@ -214,13 +219,22 @@ class TestOpenAICompatibleClient:
     def test_complete_uses_no_base_url_by_default(self, client):
         mock_openai = MagicMock()
         mock_openai.OpenAI.return_value = MagicMock(
-            chat=MagicMock(completions=MagicMock(create=MagicMock(
-                return_value=MagicMock(
-                    choices=[MagicMock(message=MagicMock(content="ok"), finish_reason="stop")],
-                    model="gpt-4o",
-                    usage=MagicMock(prompt_tokens=1, completion_tokens=1),
+            chat=MagicMock(
+                completions=MagicMock(
+                    create=MagicMock(
+                        return_value=MagicMock(
+                            choices=[
+                                MagicMock(
+                                    message=MagicMock(content="ok"),
+                                    finish_reason="stop",
+                                )
+                            ],
+                            model="gpt-4o",
+                            usage=MagicMock(prompt_tokens=1, completion_tokens=1),
+                        )
+                    )
                 )
-            )))
+            )
         )
 
         with patch.dict(sys.modules, {"openai": mock_openai}):
@@ -232,17 +246,28 @@ class TestOpenAICompatibleClient:
     def test_complete_uses_custom_base_url(self, perplexity_client):
         mock_openai = MagicMock()
         mock_openai.OpenAI.return_value = MagicMock(
-            chat=MagicMock(completions=MagicMock(create=MagicMock(
-                return_value=MagicMock(
-                    choices=[MagicMock(message=MagicMock(content="ok"), finish_reason="stop")],
-                    model="sonar-pro",
-                    usage=MagicMock(prompt_tokens=1, completion_tokens=1),
+            chat=MagicMock(
+                completions=MagicMock(
+                    create=MagicMock(
+                        return_value=MagicMock(
+                            choices=[
+                                MagicMock(
+                                    message=MagicMock(content="ok"),
+                                    finish_reason="stop",
+                                )
+                            ],
+                            model="sonar-pro",
+                            usage=MagicMock(prompt_tokens=1, completion_tokens=1),
+                        )
+                    )
                 )
-            )))
+            )
         )
 
         with patch.dict(sys.modules, {"openai": mock_openai}):
-            perplexity_client.complete([LLMMessage(role=MessageRole.USER, content="Hi")])
+            perplexity_client.complete(
+                [LLMMessage(role=MessageRole.USER, content="Hi")]
+            )
 
         call_kwargs = mock_openai.OpenAI.call_args[1]
         assert call_kwargs["base_url"] == "https://api.perplexity.ai"
