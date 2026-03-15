@@ -6,6 +6,8 @@ Usage:
     python utilities/test_pipeline.py -c config.yaml --dry-run
     python utilities/test_pipeline.py -c config.yaml --dry-run --output-dir ./output
     python utilities/test_pipeline.py -c config.yaml --fetch-days 3 --max-emails 10
+
+Prompt overrides are configured via `pipeline.prompts_path` in config.yaml.
 """
 
 import argparse
@@ -93,12 +95,6 @@ def main() -> None:
         help="Directory to save output files when using --dry-run (default: current directory)",
     )
     parser.add_argument(
-        "--prompts",
-        type=str,
-        default=None,
-        help="Path to prompt overrides YAML file (optional)",
-    )
-    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable verbose logging",
@@ -169,9 +165,7 @@ def main() -> None:
 
     # Build digest
     print("\nBuilding digest...")
-    pipeline = EmailProcessingPipeline(
-        prompts_path=Path(args.prompts) if args.prompts else None
-    )
+    pipeline = EmailProcessingPipeline()
     try:
         digest = pipeline.build_digest(selected)
     except Exception as e:
