@@ -24,6 +24,8 @@ class LLMConfig(MyBaseModel):
     provider: str | None = None  # set to "claude" to use the native Anthropic SDK
     max_tokens: int = 4096
     temperature: float = 0.7
+    input_cost_per_million: float | None = None  # USD per 1M input tokens
+    output_cost_per_million: float | None = None  # USD per 1M output tokens
 
 
 class Language(Enum):
@@ -80,6 +82,7 @@ class PipelineConfig(MyBaseModel):
     max_articles_in_final_email: int = 7
     min_chunk_chars: int = 80
     max_chunks_per_email: int = 60
+    show_cost_in_footer: bool = True
 
 
 class Config(MyBaseModel):

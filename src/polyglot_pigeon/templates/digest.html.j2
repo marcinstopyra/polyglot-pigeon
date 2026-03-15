@@ -34,6 +34,7 @@
     .header .project-name { font-size: 1.3em; font-weight: bold; color: #1a1a2e; margin: 0 0 4px; }
     .header .digest-title { font-size: 1em; color: #555; margin: 0 0 4px; }
     .header .digest-date { font-size: 0.85em; color: #888; margin: 0; }
+    .footer { margin-top: 2em; padding-top: 1em; border-top: 1px solid #ddd; font-size: 0.75em; color: #aaa; }
   </style>
 </head>
 <body>
@@ -63,6 +64,10 @@
       {% endfor %}
     {% endif %}
   {% endfor %}
+
+  {% if cost_info %}
+  <div class="footer">{{ cost_info }}</div>
+  {% endif %}
 
 </body>
 </html>

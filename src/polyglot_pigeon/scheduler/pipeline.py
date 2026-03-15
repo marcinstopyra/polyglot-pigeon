@@ -17,7 +17,8 @@ from pydantic import ValidationError
 from polyglot_pigeon.config import get_config
 from polyglot_pigeon.content import chunk_email
 from polyglot_pigeon.llm import create_llm_client
-from polyglot_pigeon.llm.models import LLMMessage, MessageRole
+from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
+from polyglot_pigeon.models.configurations import LLMConfig
 from polyglot_pigeon.mail import EmailSender, InlineImage
 from polyglot_pigeon.models.models import (
     SourceArticleDescriptor,
@@ -34,6 +35,36 @@ from polyglot_pigeon.prompts import PromptManager
 log = logging.getLogger(__name__)
 
 MAX_JSON_RETRIES = 3
+
+
+@dataclass
+class TokenUsageAccumulator:
+    """Accumulates token counts across all LLM calls in the pipeline."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    def add(self, response: LLMResponse) -> None:
+        self.input_tokens += response.input_tokens or 0
+        self.output_tokens += response.output_tokens or 0
+
+    def format_footer(self, model: str, llm_config: LLMConfig) -> str:
+        if (
+            llm_config.input_cost_per_million is not None
+            and llm_config.output_cost_per_million is not None
+        ):
+            cost = (
+                self.input_tokens * llm_config.input_cost_per_million / 1_000_000
+                + self.output_tokens * llm_config.output_cost_per_million / 1_000_000
+            )
+            estimated_cost = f"${cost:.4f}"
+        else:
+            estimated_cost = "N/A"
+        return (
+            f"The content of this email was generated with: {model}, "
+            f"estimated cost: {estimated_cost} "
+            f"(tokens used: in={self.input_tokens}; out={self.output_tokens})"
+        )
 
 _TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 _LOGO_PATH = _TEMPLATES_DIR / "logo.png"
@@ -56,6 +87,7 @@ def _parse_json_with_retry(
     fix_prompt: str,
     max_retries: int = MAX_JSON_RETRIES,
     model_class: type[MyBaseModel] = TargetEmailContent,
+    accumulator: TokenUsageAccumulator | None = None,
 ) -> Any:
     """Parse LLM response as a Pydantic model, retrying via LLM if invalid.
 
@@ -88,6 +120,8 @@ def _parse_json_with_retry(
                 LLMMessage(role=MessageRole.USER, content=fix_prompt),
             ]
         )
+        if accumulator is not None:
+            accumulator.add(fix_response)
         current = fix_response.content
         result = _try_parse(current)
         if result is not None:
@@ -103,13 +137,16 @@ def _render_html(
     title: str,
     date: str,
     logo_cid: str | None,
+    cost_info: str | None = None,
 ) -> str:
     """Render a TargetEmailContent as a styled HTML email document."""
     template = _jinja_env.get_template("digest.html.j2")
-    return template.render(content=content, title=title, date=date, logo_cid=logo_cid)
+    return template.render(
+        content=content, title=title, date=date, logo_cid=logo_cid, cost_info=cost_info
+    )
 
 
-def _render_text(content: TargetEmailContent) -> str:
+def _render_text(content: TargetEmailContent, cost_info: str | None = None) -> str:
     """Render a TargetEmailContent as a plain-text email body."""
     parts = [content.introduction, "", "## Articles:", ""]
     for i, article in enumerate(content.articles):
@@ -126,6 +163,8 @@ def _render_text(content: TargetEmailContent) -> str:
             for word, translation in article.glossary.items():
                 parts.append(f"**{word}**: {translation}")
             parts.append("")
+    if cost_info:
+        parts.extend(["---", "", cost_info, ""])
     return "\n".join(parts)
 
 
@@ -137,6 +176,7 @@ class DigestContent:
     body_text: str
     body_html: str
     inline_images: list[InlineImage] = field(default_factory=list)
+    cost_info: str | None = None
 
 
 @dataclass
@@ -197,6 +237,7 @@ class EmailProcessingPipeline(Pipeline):
     def __init__(self, prompts_path: Path | None = None):
         self.config = get_config()
         self._prompts_path = prompts_path
+        self._accumulator = TokenUsageAccumulator()
 
     # ── Stage 1: Chunk emails ─────────────────────────────────────────────────
 
@@ -243,12 +284,14 @@ class EmailProcessingPipeline(Pipeline):
 
             try:
                 response = llm_client.complete(messages)
+                self._accumulator.add(response)
                 topic_list = _parse_json_with_retry(
                     raw=response.content,
                     llm_client=llm_client,
                     original_messages=messages,
                     fix_prompt=fix_prompt,
                     model_class=TopicExtractionResponse,
+                    accumulator=self._accumulator,
                 )
             except Exception as e:
                 log.warning(
@@ -319,12 +362,14 @@ class EmailProcessingPipeline(Pipeline):
             LLMMessage(role=MessageRole.USER, content=user_prompt),
         ]
         response = llm_client.complete(messages)
+        self._accumulator.add(response)
         curation = _parse_json_with_retry(
             raw=response.content,
             llm_client=llm_client,
             original_messages=messages,
             fix_prompt=fix_prompt,
             model_class=CurationResponse,
+            accumulator=self._accumulator,
         )
 
         valid_ids = {t.article_id for t in topics}
@@ -419,12 +464,14 @@ class EmailProcessingPipeline(Pipeline):
 
         log.info(f"Transforming {len(articles)} articles via LLM")
         response = llm_client.complete(messages)
+        self._accumulator.add(response)
         return _parse_json_with_retry(
             raw=response.content,
             llm_client=llm_client,
             original_messages=messages,
             fix_prompt=fix_prompt,
             model_class=TargetEmailContent,
+            accumulator=self._accumulator,
         )
 
     # ── Orchestrator ──────────────────────────────────────────────────────────
@@ -441,6 +488,8 @@ class EmailProcessingPipeline(Pipeline):
         Raises:
             ValueError: If any pipeline stage produces no usable output.
         """
+        self._accumulator = TokenUsageAccumulator()
+
         pipeline_cfg = self.config.pipeline
         prompts = PromptManager(overrides_path=self._prompts_path)
         llm_client = create_llm_client(self.config.llm)
@@ -491,11 +540,16 @@ class EmailProcessingPipeline(Pipeline):
                 InlineImage(cid=logo_cid, data=_LOGO_PATH.read_bytes())
             )
 
+        cost_info: str | None = None
+        if pipeline_cfg.show_cost_in_footer:
+            cost_info = self._accumulator.format_footer(self.config.llm.model, self.config.llm)
+
         return DigestContent(
             subject=subject,
-            body_text=_render_text(parsed),
-            body_html=_render_html(parsed, title, date_str, logo_cid),
+            body_text=_render_text(parsed, cost_info),
+            body_html=_render_html(parsed, title, date_str, logo_cid, cost_info),
             inline_images=inline_images,
+            cost_info=cost_info,
         )
 
     def send_target_email(self, digest: DigestContent) -> ProcessingResult:

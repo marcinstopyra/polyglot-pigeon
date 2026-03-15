@@ -43,6 +43,8 @@ def test_full_config():
             "provider": "claude",
             "max_tokens": 4096,
             "temperature": 0.7,
+            "input_cost_per_million": None,
+            "output_cost_per_million": None,
         },
         "logging": {
             "file": "logs/polyglot_pigeon.log",
@@ -75,6 +77,7 @@ def test_full_config():
             "max_articles_in_final_email": 7,
             "min_chunk_chars": 80,
             "max_chunks_per_email": 60,
+            "show_cost_in_footer": True,
         },
     }
 
