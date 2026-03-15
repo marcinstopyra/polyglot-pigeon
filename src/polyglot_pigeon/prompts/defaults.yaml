@@ -42,6 +42,10 @@ json_fix: |
   Fix it and respond ONLY with a valid JSON object matching this schema:
   {json_schema}
 
+  If the response was cut off mid-way through an article (e.g. due to output
+  length limits), remove the incomplete last article entirely and close the
+  JSON object with the articles that were fully written.
+
   No markdown, no code fences, no extra text.
 
 ## Topic extraction (stage 2 — one call per source email)
