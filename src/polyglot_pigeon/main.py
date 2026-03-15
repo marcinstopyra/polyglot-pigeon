@@ -38,12 +38,6 @@ def main() -> None:
         help="Path to the configuration file",
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Enable verbose logging",
-    )
-    parser.add_argument(
         "--daemon",
         action="store_true",
         help="Run as a long-running daemon (scheduled processing)",
@@ -59,11 +53,7 @@ def main() -> None:
     config_loader.load(config_path=str(args.config))
     config = get_config()
 
-    log_level = (
-        logging.DEBUG
-        if args.verbose
-        else getattr(logging, config.logging.level.upper(), logging.INFO)
-    )
+    log_level = getattr(logging, config.logging.level.upper(), logging.INFO)
     setup_logger(level=log_level, log_file=config.logging.file)
 
     log.debug(f"Loaded config: {config}")
