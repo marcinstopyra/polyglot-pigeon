@@ -316,6 +316,7 @@ def _mock_config():
     config.pipeline.max_articles_in_final_email = 7
     config.pipeline.min_chunk_chars = 80
     config.pipeline.max_chunks_per_email = 60
+    config.pipeline.show_cost_in_footer = False
     return config
 
 
@@ -527,7 +528,7 @@ class TestCurateArticles:
         prompts.get.return_value = "prompt"
 
         result = pipeline._curate_articles(
-            topics, max_articles=7, llm_client=llm_client, prompts=prompts
+            topics, max_articles=7, llm_client=llm_client, prompts=prompts,
         )
 
         assert result == selected
@@ -542,7 +543,7 @@ class TestCurateArticles:
         prompts.get.return_value = "prompt"
 
         result = pipeline._curate_articles(
-            topics, max_articles=7, llm_client=llm_client, prompts=prompts
+            topics, max_articles=7, llm_client=llm_client, prompts=prompts,
         )
 
         assert result == [topics[0].article_id]
@@ -557,7 +558,7 @@ class TestCurateArticles:
         prompts.get.return_value = "prompt"
 
         result = pipeline._curate_articles(
-            topics, max_articles=2, llm_client=llm_client, prompts=prompts
+            topics, max_articles=2, llm_client=llm_client, prompts=prompts,
         )
 
         assert len(result) == 2
