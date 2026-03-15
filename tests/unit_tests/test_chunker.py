@@ -9,7 +9,7 @@ from polyglot_pigeon.content.chunker import (
     _extract_sender_name,
     chunk_email,
 )
-from polyglot_pigeon.models.models import Email, SourceEmailContents
+from polyglot_pigeon.models.models import Email, ChunkedSourceEmail
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -137,7 +137,7 @@ class TestChunkEmail:
     def test_returns_source_email_contents(self):
         email = _email(body_text="Hello.\n\nWorld.")
         result = chunk_email(email, min_chars=1, max_chunks=100)
-        assert isinstance(result, SourceEmailContents)
+        assert isinstance(result, ChunkedSourceEmail)
 
     def test_email_fields_populated(self):
         email = _email(

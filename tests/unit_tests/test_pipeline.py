@@ -7,12 +7,12 @@ import pytest
 
 from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
 from polyglot_pigeon.models.models import (
-    ArticleTopic,
-    ArticleTopicList,
+    SourceArticleDescriptor,
+    TopicExtractionResponse,
     CurationResponse,
     EmailChunk,
-    SelectedArticleContent,
-    SourceEmailContents,
+    SelectedArticle,
+    ChunkedSourceEmail,
     TargetArticle,
     TargetEmailContent,
 )
@@ -393,8 +393,8 @@ class TestEmailProcessingPipelinePromptsPath:
 # ── _extract_topics ───────────────────────────────────────────────────────────
 
 
-def _make_source(chunks: list[EmailChunk] | None = None) -> SourceEmailContents:
-    return SourceEmailContents(
+def _make_source(chunks: list[EmailChunk] | None = None) -> ChunkedSourceEmail:
+    return ChunkedSourceEmail(
         email_id=uuid4(),
         sender="Test Sender <test@example.com>",
         sender_name="Test Sender",
@@ -403,18 +403,18 @@ def _make_source(chunks: list[EmailChunk] | None = None) -> SourceEmailContents:
     )
 
 
-def _make_topic_list_json(source: SourceEmailContents, extra_uuid: bool = False) -> str:
+def _make_topic_list_json(source: ChunkedSourceEmail, extra_uuid: bool = False) -> str:
     chunk_ids = [c.chunk_id for c in source.email_contents]
     locations = [str(chunk_ids[0])]
     if extra_uuid:
         locations.append(str(uuid4()))  # invalid UUID not in source
-    topic = ArticleTopic(
+    topic = SourceArticleDescriptor(
         title="Test Article",
         content_locations=[chunk_ids[0]] + ([uuid4()] if extra_uuid else []),
         tags=["tech"],
     )
     # Manually build JSON to match what the LLM would return
-    topic_list = ArticleTopicList(articles=[topic])
+    topic_list = TopicExtractionResponse(articles=[topic])
     return topic_list.model_dump_json()
 
 
@@ -446,12 +446,12 @@ class TestExtractTopics:
         chunk_id = source.email_contents[0].chunk_id
         rogue_id = uuid4()
 
-        topic = ArticleTopic(
+        topic = SourceArticleDescriptor(
             title="Mixed",
             content_locations=[chunk_id, rogue_id],
             tags=["news"],
         )
-        topic_list = ArticleTopicList(articles=[topic])
+        topic_list = TopicExtractionResponse(articles=[topic])
         llm_client = _mock_llm([topic_list.model_dump_json()])
 
         prompts = MagicMock()
@@ -468,12 +468,12 @@ class TestExtractTopics:
         pipeline = self._make_pipeline()
         source = _make_source()
 
-        topic = ArticleTopic(
+        topic = SourceArticleDescriptor(
             title="Bogus",
             content_locations=[uuid4(), uuid4()],
             tags=["noise"],
         )
-        topic_list = ArticleTopicList(articles=[topic])
+        topic_list = TopicExtractionResponse(articles=[topic])
         llm_client = _mock_llm([topic_list.model_dump_json()])
 
         prompts = MagicMock()
@@ -506,9 +506,9 @@ class TestCurateArticles:
             mock_cfg.return_value = _mock_config()
             return EmailProcessingPipeline()
 
-    def _make_topics(self, n: int = 3) -> list[ArticleTopic]:
+    def _make_topics(self, n: int = 3) -> list[SourceArticleDescriptor]:
         return [
-            ArticleTopic(
+            SourceArticleDescriptor(
                 title=f"Article {i}",
                 content_locations=[uuid4()],
                 tags=["tag"],
@@ -577,7 +577,7 @@ class TestReconstructContent:
 
         chunk_id_1 = uuid4()
         chunk_id_2 = uuid4()
-        source = SourceEmailContents(
+        source = ChunkedSourceEmail(
             email_id=uuid4(),
             sender="Test <test@example.com>",
             sender_name="Test",
@@ -587,7 +587,7 @@ class TestReconstructContent:
                 EmailChunk(chunk_id=chunk_id_2, text="Second chunk."),
             ],
         )
-        topic = ArticleTopic(
+        topic = SourceArticleDescriptor(
             title="My Article",
             content_locations=[chunk_id_1, chunk_id_2],
             tags=["news"],
@@ -621,7 +621,7 @@ class TestReconstructContent:
     def test_missing_source_skipped(self):
         pipeline = self._make_pipeline()
         chunk_id = uuid4()
-        topic = ArticleTopic(
+        topic = SourceArticleDescriptor(
             title="Orphan",
             content_locations=[chunk_id],
             tags=[],
@@ -651,9 +651,9 @@ class TestBuildDigestIntegration:
 
         source = _make_source()
         article_id = uuid4()
-        topic = MagicMock(spec=ArticleTopic)
+        topic = MagicMock(spec=SourceArticleDescriptor)
         topic.article_id = article_id
-        selected_article = MagicMock(spec=SelectedArticleContent)
+        selected_article = MagicMock(spec=SelectedArticle)
         digest_content = _digest()
 
         pipeline._chunk_emails = MagicMock(return_value=[source])

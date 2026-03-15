@@ -20,13 +20,13 @@ from polyglot_pigeon.llm import create_llm_client
 from polyglot_pigeon.llm.models import LLMMessage, MessageRole
 from polyglot_pigeon.mail import EmailSender, InlineImage
 from polyglot_pigeon.models.models import (
-    ArticleTopic,
-    ArticleTopicList,
+    SourceArticleDescriptor,
+    TopicExtractionResponse,
     CurationResponse,
     Email,
     MyBaseModel,
-    SelectedArticleContent,
-    SourceEmailContents,
+    SelectedArticle,
+    ChunkedSourceEmail,
     TargetEmailContent,
 )
 from polyglot_pigeon.prompts import PromptManager
@@ -200,7 +200,7 @@ class EmailProcessingPipeline(Pipeline):
 
     # ── Stage 1: Chunk emails ─────────────────────────────────────────────────
 
-    def _chunk_emails(self, emails: list[Email]) -> list[SourceEmailContents]:
+    def _chunk_emails(self, emails: list[Email]) -> list[ChunkedSourceEmail]:
         pipeline_cfg = self.config.pipeline
         return [
             chunk_email(
@@ -215,12 +215,12 @@ class EmailProcessingPipeline(Pipeline):
 
     def _extract_topics(
         self,
-        source_list: list[SourceEmailContents],
+        source_list: list[ChunkedSourceEmail],
         llm_client: Any,
         prompts: PromptManager,
-    ) -> list[ArticleTopic]:
-        all_topics: list[ArticleTopic] = []
-        json_schema = json.dumps(ArticleTopicList.model_json_schema(), indent=2)
+    ) -> list[SourceArticleDescriptor]:
+        all_topics: list[SourceArticleDescriptor] = []
+        json_schema = json.dumps(TopicExtractionResponse.model_json_schema(), indent=2)
         system_prompt = prompts.get("extract_topics_system", json_schema=json_schema)
         fix_prompt = prompts.get("json_fix", json_schema=json_schema)
 
@@ -248,7 +248,7 @@ class EmailProcessingPipeline(Pipeline):
                     llm_client=llm_client,
                     original_messages=messages,
                     fix_prompt=fix_prompt,
-                    model_class=ArticleTopicList,
+                    model_class=TopicExtractionResponse,
                 )
             except Exception as e:
                 log.warning(
@@ -284,7 +284,7 @@ class EmailProcessingPipeline(Pipeline):
 
     def _curate_articles(
         self,
-        topics: list[ArticleTopic],
+        topics: list[SourceArticleDescriptor],
         max_articles: int,
         llm_client: Any,
         prompts: PromptManager,
@@ -339,11 +339,11 @@ class EmailProcessingPipeline(Pipeline):
     def _reconstruct_content(
         self,
         selected_ids: list[UUID],
-        topics: list[ArticleTopic],
-        source_map: dict[UUID, SourceEmailContents],
-    ) -> list[SelectedArticleContent]:
+        topics: list[SourceArticleDescriptor],
+        source_map: dict[UUID, ChunkedSourceEmail],
+    ) -> list[SelectedArticle]:
         topic_map = {t.article_id: t for t in topics}
-        articles: list[SelectedArticleContent] = []
+        articles: list[SelectedArticle] = []
 
         for article_id in selected_ids:
             topic = topic_map.get(article_id)
@@ -364,7 +364,7 @@ class EmailProcessingPipeline(Pipeline):
                 if loc in chunk_map
             ]
             articles.append(
-                SelectedArticleContent(
+                SelectedArticle(
                     article_id=article_id,
                     title=topic.title,
                     sender=source.sender,
@@ -380,7 +380,7 @@ class EmailProcessingPipeline(Pipeline):
 
     def _transform_articles(
         self,
-        articles: list[SelectedArticleContent],
+        articles: list[SelectedArticle],
         llm_client: Any,
         prompts: PromptManager,
     ) -> TargetEmailContent:

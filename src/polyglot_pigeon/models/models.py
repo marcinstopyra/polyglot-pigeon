@@ -103,7 +103,7 @@ class EmailChunk(MyBaseModel):
     text: str
 
 
-class SourceEmailContents(MyBaseModel):
+class ChunkedSourceEmail(MyBaseModel):
     """Email split into ordered text chunks for LLM processing."""
 
     email_id: UUID
@@ -113,7 +113,7 @@ class SourceEmailContents(MyBaseModel):
     email_contents: list[EmailChunk]
 
 
-class ArticleTopic(MyBaseModel):
+class SourceArticleDescriptor(MyBaseModel):
     """A single topic extracted from a source email by the LLM."""
 
     article_id: UUID = Field(default_factory=uuid4)
@@ -123,10 +123,10 @@ class ArticleTopic(MyBaseModel):
     tags: list[str]
 
 
-class ArticleTopicList(MyBaseModel):
+class TopicExtractionResponse(MyBaseModel):
     """Wrapper for the stage-2 LLM response (topic extraction)."""
 
-    articles: list[ArticleTopic]
+    articles: list[SourceArticleDescriptor]
 
 
 class CurationResponse(MyBaseModel):
@@ -136,7 +136,7 @@ class CurationResponse(MyBaseModel):
 
 
 @dataclass
-class SelectedArticleContent:
+class SelectedArticle:
     """Stage-4 output: reconstructed article ready for transformation."""
 
     article_id: UUID
