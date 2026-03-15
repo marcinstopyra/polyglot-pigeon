@@ -27,6 +27,10 @@ system: |
 transform_user: |
   Transform the following articles into language learning material.
 
+  Order the articles by importance and tone: lead with the most significant
+  news and hard news stories, follow with analysis or feature pieces, and
+  place light-hearted, entertainment, or lifestyle articles last.
+
   {articles_content}
 
   Respond only with the JSON object.
