@@ -38,12 +38,6 @@ def main() -> None:
         help="Path to the configuration file",
     )
     parser.add_argument(
-        "--prompts",
-        type=Path,
-        default=None,
-        help="Path to prompt overrides YAML file (optional)",
-    )
-    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -74,8 +68,7 @@ def main() -> None:
 
     log.debug(f"Loaded config: {config}")
 
-    pipeline = EmailProcessingPipeline(prompts_path=args.prompts)
-    scheduler = EmailScheduler(config=config, pipeline=pipeline)
+    scheduler = EmailScheduler(config=config, pipeline_factory=EmailProcessingPipeline)
 
     if args.daemon:
         log.info("Starting in daemon mode")

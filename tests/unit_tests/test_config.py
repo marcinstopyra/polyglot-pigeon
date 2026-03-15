@@ -78,6 +78,7 @@ def test_full_config():
             "min_chunk_chars": 80,
             "max_chunks_per_email": 60,
             "show_cost_in_footer": True,
+            "prompts_path": "/app/prompts.yaml",
         },
     }
 

@@ -234,9 +234,8 @@ class EmailProcessingPipeline(Pipeline):
     6. Render and send via SMTP
     """
 
-    def __init__(self, prompts_path: Path | None = None):
+    def __init__(self):
         self.config = get_config()
-        self._prompts_path = prompts_path
         self._accumulator = TokenUsageAccumulator()
 
     # ── Stage 1: Chunk emails ─────────────────────────────────────────────────
@@ -491,7 +490,7 @@ class EmailProcessingPipeline(Pipeline):
         self._accumulator = TokenUsageAccumulator()
 
         pipeline_cfg = self.config.pipeline
-        prompts = PromptManager(overrides_path=self._prompts_path)
+        prompts = PromptManager(overrides_path=self.config.pipeline.prompts_path)
         llm_client = create_llm_client(self.config.llm)
 
         # Stage 1: chunk
