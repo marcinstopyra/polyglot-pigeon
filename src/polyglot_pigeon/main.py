@@ -65,7 +65,11 @@ def main() -> None:
     config_loader.load(config_path=str(args.config))
     config = get_config()
 
-    log_level = logging.DEBUG if args.verbose else getattr(logging, config.logging.level.upper(), logging.INFO)
+    log_level = (
+        logging.DEBUG
+        if args.verbose
+        else getattr(logging, config.logging.level.upper(), logging.INFO)
+    )
     setup_logger(level=log_level, log_file=config.logging.file)
 
     log.debug(f"Loaded config: {config}")

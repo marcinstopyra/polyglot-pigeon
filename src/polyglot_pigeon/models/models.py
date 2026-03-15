@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid4
 
-from pydantic import BaseModel, model_serializer, model_validator
+from pydantic import BaseModel, Field, model_serializer, model_validator
 
 
 class MyBaseModel(BaseModel):
@@ -92,3 +94,54 @@ class TargetEmailContent(MyBaseModel):
 
     introduction: str
     articles: list[TargetArticle]
+
+
+class EmailChunk(MyBaseModel):
+    """A single ordered text chunk from a source email."""
+
+    chunk_id: UUID
+    text: str
+
+
+class ChunkedSourceEmail(MyBaseModel):
+    """Email split into ordered text chunks for LLM processing."""
+
+    email_id: UUID
+    sender: str
+    sender_name: str
+    email_subject: str
+    email_contents: list[EmailChunk]
+
+
+class SourceArticleDescriptor(MyBaseModel):
+    """A single topic extracted from a source email by the LLM."""
+
+    article_id: UUID = Field(default_factory=uuid4)
+    article_email: UUID | None = None  # set by pipeline after parsing, not by LLM
+    title: str
+    content_locations: list[UUID]
+    tags: list[str]
+
+
+class TopicExtractionResponse(MyBaseModel):
+    """Wrapper for the stage-2 LLM response (topic extraction)."""
+
+    articles: list[SourceArticleDescriptor]
+
+
+class CurationResponse(MyBaseModel):
+    """Stage-3 LLM response: selected article IDs."""
+
+    selected_ids: list[UUID]
+
+
+@dataclass
+class SelectedArticle:
+    """Stage-4 output: reconstructed article ready for transformation."""
+
+    article_id: UUID
+    title: str
+    sender: str
+    sender_name: str
+    email_subject: str
+    content: str

@@ -117,7 +117,7 @@ class TestPromptManager:
         manager = PromptManager()
         result = manager.get(
             "transform_user",
-            content="Today in tech: AI advances continue.",
+            articles_content="Today in tech: AI advances continue.",
         )
 
         assert "Today in tech: AI advances continue." in result

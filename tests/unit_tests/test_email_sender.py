@@ -262,7 +262,9 @@ class TestInlineImage:
 
 
 class TestSendWithInlineImages:
-    def test_send_with_inline_images_uses_multipart_related(self, target_config, mock_smtp):
+    def test_send_with_inline_images_uses_multipart_related(
+        self, target_config, mock_smtp
+    ):
         sender = EmailSender(target_config)
         sender._connection = mock_smtp
         img = InlineImage(cid="logo", data=b"\x89PNG\r\n\x1a\n")
@@ -279,7 +281,9 @@ class TestSendWithInlineImages:
         msg = mock_smtp.send_message.call_args[0][0]
         assert msg.get_content_type() == "multipart/related"
 
-    def test_related_message_contains_alternative_and_image(self, target_config, mock_smtp):
+    def test_related_message_contains_alternative_and_image(
+        self, target_config, mock_smtp
+    ):
         sender = EmailSender(target_config)
         sender._connection = mock_smtp
         img = InlineImage(cid="logo", data=b"\x89PNG\r\n\x1a\n")

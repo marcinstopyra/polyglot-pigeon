@@ -18,7 +18,9 @@ class SourceEmailConfig(MyBaseModel):
 class LLMConfig(MyBaseModel):
     api_key: str
     model: str
-    url: str | None = None      # base_url for OpenAI-compatible endpoints; omit for OpenAI default
+    url: str | None = (
+        None  # base_url for OpenAI-compatible endpoints; omit for OpenAI default
+    )
     provider: str | None = None  # set to "claude" to use the native Anthropic SDK
     max_tokens: int = 4096
     temperature: float = 0.7
@@ -74,6 +76,12 @@ class LoggingConfig(MyBaseModel):
     file: Path = Path("logs/polyglot_pigeon.log")
 
 
+class PipelineConfig(MyBaseModel):
+    max_articles_in_final_email: int = 7
+    min_chunk_chars: int = 80
+    max_chunks_per_email: int = 60
+
+
 class Config(MyBaseModel):
     source_email: SourceEmailConfig
     llm: LLMConfig
@@ -81,3 +89,4 @@ class Config(MyBaseModel):
     target_email: TargetEmailConfig
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
