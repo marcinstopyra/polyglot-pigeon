@@ -153,14 +153,14 @@ class TestChunkEmail:
     def test_each_chunk_has_uuid_key(self):
         email = _email(body_text="Chunk one.\n\nChunk two.\n\nChunk three.")
         result = chunk_email(email, min_chars=1, max_chunks=100)
-        for key in result.email_contents:
-            assert isinstance(key, UUID)
+        for chunk in result.email_contents:
+            assert isinstance(chunk.chunk_id, UUID)
 
     def test_min_chars_filters_short_chunks(self):
         email = _email(body_text="Hi.\n\nThis is a longer paragraph with real content.")
         result = chunk_email(email, min_chars=10, max_chunks=100)
-        for chunk in result.email_contents.values():
-            assert len(chunk) >= 10
+        for chunk in result.email_contents:
+            assert len(chunk.text) >= 10
 
     def test_max_chunks_cap(self):
         paragraphs = "\n\n".join(
@@ -176,7 +176,7 @@ class TestChunkEmail:
             body_text="Plain text body.",
         )
         result = chunk_email(email, min_chars=1, max_chunks=100)
-        combined = " ".join(result.email_contents.values())
+        combined = " ".join(c.text for c in result.email_contents)
         assert "From HTML" in combined
         assert "Plain text body." not in combined
 
@@ -185,13 +185,13 @@ class TestChunkEmail:
             body_html=None, body_text="Plain text only.\n\nSecond paragraph."
         )
         result = chunk_email(email, min_chars=1, max_chunks=100)
-        combined = " ".join(result.email_contents.values())
+        combined = " ".join(c.text for c in result.email_contents)
         assert "Plain text only." in combined
 
     def test_no_content_returns_empty_dict(self):
         email = _email(body_html=None, body_text="")
         result = chunk_email(email, min_chars=1, max_chunks=100)
-        assert result.email_contents == {}
+        assert result.email_contents == []
 
     def test_unique_email_ids_per_call(self):
         email = _email(body_text="Content.")

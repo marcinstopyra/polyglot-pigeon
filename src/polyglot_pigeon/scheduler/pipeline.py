@@ -226,7 +226,8 @@ class EmailProcessingPipeline(Pipeline):
 
         for source in source_list:
             email_contents_json = json.dumps(
-                {str(k): v for k, v in source.email_contents.items()}, indent=2
+                [{"chunk_id": str(c.chunk_id), "text": c.text} for c in source.email_contents],
+                indent=2,
             )
             user_prompt = prompts.get(
                 "extract_topics_user",
@@ -255,7 +256,7 @@ class EmailProcessingPipeline(Pipeline):
                 )
                 continue
 
-            valid_chunk_ids = set(source.email_contents.keys())
+            valid_chunk_ids = {c.chunk_id for c in source.email_contents}
             for topic in topic_list.articles:
                 invalid = [
                     uid for uid in topic.content_locations if uid not in valid_chunk_ids
@@ -356,10 +357,11 @@ class EmailProcessingPipeline(Pipeline):
                 )
                 continue
 
+            chunk_map = {c.chunk_id: c.text for c in source.email_contents}
             chunks = [
-                source.email_contents[loc]
+                chunk_map[loc]
                 for loc in topic.content_locations
-                if loc in source.email_contents
+                if loc in chunk_map
             ]
             articles.append(
                 SelectedArticleContent(

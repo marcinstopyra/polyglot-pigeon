@@ -4,7 +4,7 @@ import re
 from html.parser import HTMLParser
 from uuid import uuid4
 
-from polyglot_pigeon.models.models import Email, SourceEmailContents
+from polyglot_pigeon.models.models import Email, EmailChunk, SourceEmailContents
 
 _CHUNK_BOUNDARY_TAGS = frozenset({"h1", "h2", "h3", "h4", "article", "section"})
 _BLOCK_TAGS = frozenset({"p", "br", "div", "li"})
@@ -133,7 +133,7 @@ def chunk_email(email: Email, min_chars: int, max_chunks: int) -> SourceEmailCon
         max_chunks: Cap on number of chunks (takes first N).
 
     Returns:
-        SourceEmailContents with UUID-keyed chunk dict.
+        SourceEmailContents with ordered list of EmailChunk objects.
     """
     if email.body_html:
         raw_chunks = _chunk_html(email.body_html)
@@ -143,7 +143,7 @@ def chunk_email(email: Email, min_chars: int, max_chunks: int) -> SourceEmailCon
     chunks = [c for c in raw_chunks if len(c) >= min_chars]
     chunks = chunks[:max_chunks]
 
-    email_contents = {uuid4(): chunk for chunk in chunks}
+    email_contents = [EmailChunk(chunk_id=uuid4(), text=chunk) for chunk in chunks]
 
     return SourceEmailContents(
         email_id=uuid4(),

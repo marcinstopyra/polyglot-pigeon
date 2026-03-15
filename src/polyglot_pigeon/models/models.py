@@ -96,14 +96,21 @@ class TargetEmailContent(MyBaseModel):
     articles: list[TargetArticle]
 
 
+class EmailChunk(MyBaseModel):
+    """A single ordered text chunk from a source email."""
+
+    chunk_id: UUID
+    text: str
+
+
 class SourceEmailContents(MyBaseModel):
-    """Email split into UUID-keyed text chunks for LLM processing."""
+    """Email split into ordered text chunks for LLM processing."""
 
     email_id: UUID
     sender: str
     sender_name: str
     email_subject: str
-    email_contents: dict[UUID, str]
+    email_contents: list[EmailChunk]
 
 
 class ArticleTopic(MyBaseModel):

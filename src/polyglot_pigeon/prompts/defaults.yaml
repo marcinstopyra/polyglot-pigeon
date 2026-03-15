@@ -49,7 +49,7 @@ extract_topics_system: |
   For each distinct article or topic:
   - Group all related text chunk UUIDs under one topic
   - Write a concise, descriptive title
-  - Assign 2-5 descriptive tags (e.g. "technology", "politics", "climate")
+  - Assign 2-5 descriptive tags (e.g. "technology", "politics", "climate", "USA", "Ukraine", "EU", "AI")
 
   IMPORTANT: Only reference UUIDs that appear in the input dict. Do not invent
   or guess UUIDs — copy them exactly as provided.

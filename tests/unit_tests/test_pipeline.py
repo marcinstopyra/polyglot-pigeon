@@ -10,6 +10,7 @@ from polyglot_pigeon.models.models import (
     ArticleTopic,
     ArticleTopicList,
     CurationResponse,
+    EmailChunk,
     SelectedArticleContent,
     SourceEmailContents,
     TargetArticle,
@@ -392,19 +393,18 @@ class TestEmailProcessingPipelinePromptsPath:
 # ── _extract_topics ───────────────────────────────────────────────────────────
 
 
-def _make_source(chunks: dict | None = None) -> SourceEmailContents:
-    chunk_id = uuid4()
+def _make_source(chunks: list[EmailChunk] | None = None) -> SourceEmailContents:
     return SourceEmailContents(
         email_id=uuid4(),
         sender="Test Sender <test@example.com>",
         sender_name="Test Sender",
         email_subject="Weekly Digest",
-        email_contents=chunks or {chunk_id: "Some article content here."},
+        email_contents=chunks or [EmailChunk(chunk_id=uuid4(), text="Some article content here.")],
     )
 
 
 def _make_topic_list_json(source: SourceEmailContents, extra_uuid: bool = False) -> str:
-    chunk_ids = list(source.email_contents.keys())
+    chunk_ids = [c.chunk_id for c in source.email_contents]
     locations = [str(chunk_ids[0])]
     if extra_uuid:
         locations.append(str(uuid4()))  # invalid UUID not in source
@@ -443,7 +443,7 @@ class TestExtractTopics:
         """LLM returns a UUID not in email_contents — it should be silently dropped."""
         pipeline = self._make_pipeline()
         source = _make_source()
-        chunk_id = list(source.email_contents.keys())[0]
+        chunk_id = source.email_contents[0].chunk_id
         rogue_id = uuid4()
 
         topic = ArticleTopic(
@@ -582,7 +582,10 @@ class TestReconstructContent:
             sender="Test <test@example.com>",
             sender_name="Test",
             email_subject="Weekly",
-            email_contents={chunk_id_1: "First chunk.", chunk_id_2: "Second chunk."},
+            email_contents=[
+                EmailChunk(chunk_id=chunk_id_1, text="First chunk."),
+                EmailChunk(chunk_id=chunk_id_2, text="Second chunk."),
+            ],
         )
         topic = ArticleTopic(
             title="My Article",
