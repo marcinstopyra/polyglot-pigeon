@@ -98,16 +98,18 @@ def _parse_json_with_retry(
     3. If all retries exhausted, raise ValueError.
     """
 
-    def _try_parse(text: str) -> Any | None:
+    def _try_parse(text: str) -> tuple[Any | None, Exception | None]:
         try:
-            return model_class.model_validate_json(_strip_json_fences(text))
-        except (json.JSONDecodeError, ValidationError, ValueError):
-            return None
+            return model_class.model_validate_json(_strip_json_fences(text)), None
+        except (json.JSONDecodeError, ValidationError, ValueError) as e:
+            return None, e
 
     # Initial attempt
-    result = _try_parse(raw)
+    result, error = _try_parse(raw)
     if result is not None:
         return result
+    log.debug(f"Initial JSON parse failed ({model_class.__name__}): {error}")
+    log.debug(f"Raw LLM response:\n{raw}")
 
     # Retry loop — ask LLM to fix its own output
     current = raw
@@ -123,9 +125,11 @@ def _parse_json_with_retry(
         if accumulator is not None:
             accumulator.add(fix_response)
         current = fix_response.content
-        result = _try_parse(current)
+        result, error = _try_parse(current)
         if result is not None:
             return result
+        log.debug(f"Retry {attempt + 1} JSON parse failed ({model_class.__name__}): {error}")
+        log.debug(f"LLM fix response:\n{current}")
     else:
         raise ValueError(
             f"Failed to parse LLM response as valid JSON after {max_retries} retries"
