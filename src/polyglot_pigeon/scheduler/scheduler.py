@@ -3,6 +3,7 @@
 import logging
 import signal
 import time
+from collections.abc import Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -31,17 +32,18 @@ class EmailScheduler:
     def __init__(
         self,
         config: Config | None = None,
-        pipeline: Pipeline | None = None,
+        pipeline_factory: Callable[[], Pipeline] | None = None,
     ):
         """
         Initialize the scheduler.
 
         Args:
             config: Application configuration. If None, loads from ConfigLoader.
-            pipeline: Processing pipeline. If None, uses PlaceholderPipeline.
+            pipeline_factory: Callable that produces a fresh Pipeline on each run.
+                If None, uses PlaceholderPipeline.
         """
         self.config = config or get_config()
-        self.pipeline = pipeline or PlaceholderPipeline()
+        self._pipeline_factory = pipeline_factory or PlaceholderPipeline
         self._running = False
 
     def _setup_signal_handlers(self) -> None:
@@ -72,7 +74,8 @@ class EmailScheduler:
         log.info("Starting one-shot email processing")
 
         emails = self._fetch_emails()
-        result = self.pipeline.process(emails)
+        pipeline = self._pipeline_factory()
+        result = pipeline.process(emails)
 
         if result.emails_processed > 0 and self.config.source_email.mark_as_read:
             self._mark_emails_processed([e.uid for e in emails])
