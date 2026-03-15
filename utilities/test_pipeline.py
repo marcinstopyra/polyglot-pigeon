@@ -25,8 +25,7 @@ from polyglot_pigeon.mail import EmailReader
 from polyglot_pigeon.scheduler.pipeline import EmailProcessingPipeline
 
 
-def setup_logging(verbose: bool = False) -> None:
-    level = logging.DEBUG if verbose else logging.INFO
+def setup_logging(level: int = logging.INFO) -> None:
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -94,14 +93,7 @@ def main() -> None:
         default=".",
         help="Directory to save output files when using --dry-run (default: current directory)",
     )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose logging",
-    )
-
     args = parser.parse_args()
-    setup_logging(args.verbose)
 
     # Load config
     config_path = Path(args.config)
@@ -111,6 +103,9 @@ def main() -> None:
 
     loader = ConfigLoader()
     config = loader.load(config_path)
+
+    log_level = getattr(logging, config.logging.level.upper(), logging.INFO)
+    setup_logging(log_level)
 
     if args.fetch_days is not None:
         config.source_email.fetch_days = args.fetch_days
