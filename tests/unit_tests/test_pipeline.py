@@ -321,36 +321,20 @@ def _mock_config():
 
 
 class TestEmailProcessingPipelinePromptsPath:
-    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
-    def test_default_prompts_path_is_none(self, mock_get_config):
-        mock_get_config.return_value = _mock_config()
-
-        pipeline = EmailProcessingPipeline()
-
-        assert pipeline._prompts_path is None
-
-    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
-    def test_custom_prompts_path_stored(self, mock_get_config, tmp_path):
-        mock_get_config.return_value = _mock_config()
-        prompts_file = tmp_path / "prompts.yaml"
-
-        pipeline = EmailProcessingPipeline(prompts_path=prompts_file)
-
-        assert pipeline._prompts_path == prompts_file
-
     @patch("polyglot_pigeon.scheduler.pipeline.PromptManager")
     @patch("polyglot_pigeon.scheduler.pipeline.create_llm_client")
     @patch("polyglot_pigeon.scheduler.pipeline.get_config")
-    def test_prompts_path_forwarded_to_prompt_manager(
+    def test_prompts_path_read_from_config(
         self, mock_get_config, mock_llm_factory, mock_pm_cls, tmp_path
     ):
-        mock_get_config.return_value = _mock_config()
+        config = _mock_config()
+        prompts_file = tmp_path / "prompts.yaml"
+        config.pipeline.prompts_path = prompts_file
+        mock_get_config.return_value = config
         mock_pm_cls.return_value.get.return_value = "prompt text"
 
-        prompts_file = tmp_path / "prompts.yaml"
-        pipeline = EmailProcessingPipeline(prompts_path=prompts_file)
+        pipeline = EmailProcessingPipeline()
 
-        # Mock all stage methods so build_digest doesn't make real LLM calls
         source = _make_source()
         article_id = uuid4()
         topic = MagicMock()
@@ -364,31 +348,6 @@ class TestEmailProcessingPipelinePromptsPath:
         pipeline.build_digest([MagicMock()])
 
         mock_pm_cls.assert_called_once_with(overrides_path=prompts_file)
-
-    @patch("polyglot_pigeon.scheduler.pipeline.PromptManager")
-    @patch("polyglot_pigeon.scheduler.pipeline.create_llm_client")
-    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
-    def test_none_prompts_path_forwarded_to_prompt_manager(
-        self, mock_get_config, mock_llm_factory, mock_pm_cls
-    ):
-        mock_get_config.return_value = _mock_config()
-        mock_pm_cls.return_value.get.return_value = "prompt text"
-
-        pipeline = EmailProcessingPipeline(prompts_path=None)
-
-        source = _make_source()
-        article_id = uuid4()
-        topic = MagicMock()
-        topic.article_id = article_id
-        pipeline._chunk_emails = MagicMock(return_value=[source])
-        pipeline._extract_topics = MagicMock(return_value=[topic])
-        pipeline._curate_articles = MagicMock(return_value=[article_id])
-        pipeline._reconstruct_content = MagicMock(return_value=[MagicMock()])
-        pipeline._transform_articles = MagicMock(return_value=_digest())
-
-        pipeline.build_digest([MagicMock()])
-
-        mock_pm_cls.assert_called_once_with(overrides_path=None)
 
 
 # ── _extract_topics ───────────────────────────────────────────────────────────

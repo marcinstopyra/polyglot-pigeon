@@ -83,6 +83,7 @@ class PipelineConfig(MyBaseModel):
     min_chunk_chars: int = 80
     max_chunks_per_email: int = 60
     show_cost_in_footer: bool = True
+    prompts_path: Path = Path("/app/prompts.yaml")
 
 
 class Config(MyBaseModel):
