@@ -113,7 +113,7 @@ PolyglotPigeon works best with newsletters that are:
 - **Not paywalled** — content that requires clicking through to a paywalled site will not be available to the pipeline
 - **Delivered to your inbox in full** — some senders truncate the email and ask you to "read the rest online"; these produce short, incomplete digests
 
-Good examples: morning briefings, weekly industry newsletters, long-form essay digests.
+Good examples: [Semafor Flagship](https://www.semafor.com/newsletters/flagship), [Reuters Daily Briefing](https://www.reuters.com/newsletters/daily-briefing/), [The Download from MIT Technology Review](https://www.technologyreview.com/newsletters/the-download/).
 
 ### App password for the delivery (target) account
 
@@ -158,6 +158,20 @@ poetry run python src/polyglot_pigeon/main.py -c config.yaml --run-once
 ```
 
 This fetches all unread newsletters, builds a digest, sends it, and exits. Useful for testing your setup or triggering a manual run.
+
+### Interactive pipeline runner
+
+`utilities/run_pipeline.py` is an interactive script for running a manually selected batch of emails through the full pipeline. It is useful for development, prompt tuning, or verifying the output before deploying in daemon mode.
+
+```bash
+# Dry run — save the digest as HTML/text files instead of sending
+poetry run python utilities/run_pipeline.py -c config.yaml --dry-run --output-dir ./output
+
+# Fetch the last 3 days and send the result for real
+poetry run python utilities/run_pipeline.py -c config.yaml --fetch-days 3
+```
+
+The script connects to your source inbox, lists the fetched emails, lets you pick which ones to include in the batch (by number or `all`), then runs the pipeline. With `--dry-run` the digest is saved locally; without it the digest is sent to the address configured in `target_email`.
 
 ### Daemon mode with Docker
 

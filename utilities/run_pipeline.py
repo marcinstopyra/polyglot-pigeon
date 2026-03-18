@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Test script to run selected emails through the full processing pipeline.
+Interactive script to run selected emails through the full processing pipeline.
 
 Usage:
-    python utilities/test_pipeline.py -c config.yaml --dry-run
-    python utilities/test_pipeline.py -c config.yaml --dry-run --output-dir ./output
-    python utilities/test_pipeline.py -c config.yaml --fetch-days 3 --max-emails 10
+    python utilities/run_pipeline.py -c config.yaml --dry-run
+    python utilities/run_pipeline.py -c config.yaml --dry-run --output-dir ./output
+    python utilities/run_pipeline.py -c config.yaml --fetch-days 3 --max-emails 10
 
 Prompt overrides are configured via `pipeline.prompts_path` in config.yaml.
 """
