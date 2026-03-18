@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Docker image is now built and pushed on version tags (`v*`), with semver image tags (`0.1.0`, `0.1`, `0`)
+
 ## [0.1.0] - 2026-03-18
 
 [Unreleased]: https://github.com/marcinstopyra/polyglot-pigeon/compare/v0.1.0...HEAD

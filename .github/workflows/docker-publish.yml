@@ -3,6 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches: ["**"]
+    tags: ["v*"]
 
 jobs:
   build-and-push:
@@ -33,6 +34,10 @@ jobs:
             type=sha
             # branch name  →  e.g. main, feature-xyz
             type=ref,event=branch
+            # semver tags from git tag  →  e.g. 0.1.0, 0.1, 0
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
             # :latest only on main
             type=raw,value=latest,enable={{is_default_branch}}
 
