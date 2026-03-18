@@ -1,15 +1,18 @@
 source_email:
-  address: polyglot@pigeon.com
-  app_password: app_password
+  address: newsletters@gmail.com
+  app_password: xxxx-xxxx-xxxx-xxxx  # Gmail app password (not your account password)
+  # imap_server: imap.gmail.com       # default
+  # imap_port: 993                    # default
+  # fetch_days: 1                     # how many days back to look for unread emails
 
-# LLM configuration — choose one of the examples below:
+# LLM configuration — uncomment one block:
 
 # OpenAI
 llm:
   api_key: sk-...
   model: gpt-4o
 
-# Perplexity (OpenAI-compatible, set url)
+# Perplexity (OpenAI-compatible)
 # llm:
 #   api_key: pplx-...
 #   model: sonar-pro
@@ -21,20 +24,24 @@ llm:
 #   model: llama3
 #   url: http://localhost:11434/v1
 
-# Anthropic Claude (native SDK, set provider: claude)
+# Anthropic Claude (native SDK)
 # llm:
 #   api_key: sk-ant-...
 #   model: claude-haiku-4-5-20251001
 #   provider: claude
 
 language:
-  known: english
-  target: german
-  level: b1
+  known: english     # your fluent language (for glossary translations)
+  target: german     # language you are learning
+  level: b1          # CEFR level: a1 a2 b1 b2 c1 c2
 
 target_email:
-  address: target@gmail.com
+  address: me@gmail.com
   smtp_server: smtp.gmail.com
   smtp_port: 587
-  smtp_user: smtp_user
-  smtp_password: smtp_password
+  smtp_user: me@gmail.com
+  smtp_password: xxxx-xxxx-xxxx-xxxx  # Gmail app password for the delivery account
+
+schedule:
+  time: "08:00"      # when to send the daily digest (24h format)
+  timezone: "Europe/Warsaw"  # IANA timezone name
