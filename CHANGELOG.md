@@ -7,4 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/marcinstopyra/polyglot-pigeon/releases
+## [0.1.0] - 2026-03-18
+
+[Unreleased]: https://github.com/marcinstopyra/polyglot-pigeon/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/marcinstopyra/polyglot-pigeon/releases/tag/v0.1.0
