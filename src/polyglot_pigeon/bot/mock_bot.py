@@ -15,9 +15,11 @@ Run it with a BotFather token::
 Then open the bot and press START — everything after that is button-driven.
 """
 
+import asyncio
 import html
 import logging
 import os
+import random
 from enum import Enum
 
 from pydantic import Field
@@ -46,6 +48,11 @@ CB_CLEAR = "clear"
 CB_NEWS = "news"
 CB_LANG = "lang:"
 CB_SETTINGS = "settings"
+CB_MENU = "menu"
+
+# Simulated LLM generation latency (seconds) before the digest is delivered.
+LLM_DELAY_MIN_S = 4.0
+LLM_DELAY_MAX_S = 8.0
 
 
 # ── Mock data ─────────────────────────────────────────────────────────────────
@@ -68,114 +75,177 @@ class MockNewsItem(MyBaseModel):
 
 MOCK_NEWS: list[MockNewsItem] = [
     MockNewsItem(
-        id="pfand",
-        title="Deutschland erweitert das Pfandsystem",
-        source="Umwelt Heute",
-        date="18. Juli 2026",
-        content=(
-            "Ab dem nächsten Jahr gibt es in Deutschland Pfand auf noch mehr "
-            "Getränkeflaschen. Auch auf Flaschen mit Saft und Milch müssen die "
-            "Kundinnen und Kunden dann 25 Cent bezahlen. Das Geld bekommt man "
-            "zurück, wenn man die leere Flasche in den Supermarkt bringt. Die "
-            "Regierung hofft, dass so weniger Plastik in der Natur landet. "
-            "Viele Menschen finden die Idee gut, aber einige Geschäfte "
-            "beklagen den zusätzlichen Aufwand."
-        ),
-        glossary={
-            "das Pfand": "the deposit (refundable)",
-            "die Getränkeflasche": "the drink bottle",
-            "zurückbekommen": "to get back",
-            "die Regierung": "the government",
-            "der Aufwand": "the effort / hassle",
-            "beklagen": "to complain about",
-        },
-    ),
-    MockNewsItem(
-        id="hitze",
-        title="Rekordhitze im Süden Europas",
-        source="Wetterjournal",
-        date="18. Juli 2026",
-        content=(
-            "In Spanien, Italien und Griechenland ist es diese Woche extrem "
-            "heiß. In einigen Städten steigt das Thermometer auf über 44 Grad. "
-            "Die Behörden warnen vor allem ältere Menschen, mittags zu Hause "
-            "zu bleiben. Viele Touristen besuchen Museen oder Schwimmbäder, um "
-            "der Hitze zu entkommen. Fachleute sagen, dass solche Hitzewellen "
-            "wegen des Klimawandels immer häufiger werden."
-        ),
-        glossary={
-            "die Rekordhitze": "the record heat",
-            "steigen": "to rise / climb",
-            "die Behörde": "the authority (public body)",
-            "entkommen": "to escape",
-            "die Hitzewelle": "the heat wave",
-            "der Klimawandel": "the climate change",
-        },
-    ),
-    MockNewsItem(
-        id="zug",
-        title="Neue Nachtzug-Verbindung Berlin–Paris",
-        source="Reise & Bahn",
+        id="ukraine",
+        title="Ukraine entlässt Verteidigungsminister Fedorov – Proteste und Chaos",
+        source="The Kyiv Independent (War Notes)",
         date="17. Juli 2026",
         content=(
-            "Seit dieser Woche fährt wieder ein Nachtzug zwischen Berlin und "
-            "Paris. Die Reise dauert etwa zwölf Stunden, und man kann in einem "
-            "Bett schlafen. Viele Reisende finden den Zug bequemer und "
-            "umweltfreundlicher als das Flugzeug. Die Tickets sind schnell "
-            "ausverkauft, deshalb plant die Bahn schon weitere Verbindungen. "
-            "Wer möchte, kann ein eigenes Abteil buchen."
+            "Der ukrainische Präsident Selenskyj hat den Reform-"
+            "Verteidigungsminister Fedorov entlassen, und zwar nur sechs "
+            "Monate nach seiner Ernennung. Fedorov hatte mutige Reformen "
+            "vorgeschlagen, wie höhere Gehälter und feste Verträge für "
+            "Soldaten, aber das Militär war nicht begeistert. Tausende "
+            "Menschen haben in Kiew und anderen Städten protestiert, weil sie "
+            "Fedorovs Entlassung unfair finden. Fedorov behauptet, dass der "
+            "Armeechef Syrskyi ihm ein Ultimatum gestellt hat, und ein "
+            "Berater hat Syrskyi sogar beschuldigt, „Friendly Fire“-Vorfälle "
+            "zu vertuschen. Die neue Verteidigungsministerin ist jetzt die "
+            "kommissarische Leiterin des Sicherheitsdienstes, aber ob das gut "
+            "geht, ist fraglich. Vielleicht hätte Fedorov einfach mehr Zeit "
+            "gebraucht, um die Armee zu ent-sowjetisieren. Aber wer braucht "
+            "schon Reformen, wenn man Krieg führt?"
         ),
         glossary={
-            "der Nachtzug": "the night train",
-            "die Reise": "the journey / trip",
-            "bequem": "comfortable",
-            "umweltfreundlich": "environmentally friendly",
-            "ausverkauft": "sold out",
-            "das Abteil": "the compartment",
+            "entlassen": "fired / dismissed",
+            "die Ernennung": "appointment",
+            "die Reformen": "reforms",
+            "die Gehälter": "salaries",
+            "festen Verträge": "fixed-term contracts",
+            "die Entlassung": "dismissal",
+            "das Ultimatum": "ultimatum",
+            "der Berater": "advisor",
+            "vertuschen": "to cover up",
+            "die Friendly Fire-Vorfälle": "friendly fire incidents",
+            "die kommissarische Leiterin": "acting head",
         },
     ),
     MockNewsItem(
-        id="fisch",
-        title="Forscher entdecken neue Fischart",
-        source="Wissen Kompakt",
-        date="16. Juli 2026",
+        id="iran",
+        title="USA und Iran eskalieren – Kuwait bekommt Ärger mit dem Wasser",
+        source="FP's Alexandra Sharp (World Brief)",
+        date="17. Juli 2026",
         content=(
-            "Ein Team von Meeresforschern hat tief im Atlantik eine unbekannte "
-            "Fischart gefunden. Der kleine Fisch lebt in mehr als 3000 Metern "
-            "Tiefe, wo es völlig dunkel ist. Sein Körper leuchtet leicht "
-            "blau, um andere Tiere anzulocken. Die Wissenschaftler waren "
-            "überrascht, dass dort überhaupt Leben möglich ist. Nun wollen sie "
-            "den Fisch genauer untersuchen."
+            "Die USA und der Iran liefern sich eine neue Runde von Angriffen, "
+            "und diesmal sind auch Brücken und Bahnhöfe in Iran betroffen. Der "
+            "Iran hat daraufhin US-Stützpunkte in Bahrain, Kuwait und Katar "
+            "angegriffen, aber das wirklich Lustige ist, dass eine "
+            "Entsalzungsanlage in Kuwait getroffen wurde. 90 Prozent des "
+            "Trinkwassers in Kuwait kommt aus Entsalzung, also haben die jetzt "
+            "ein echtes Problem. Der US-Präsident Trump sagt, die USA "
+            "gewinnen, aber die Ölpreise steigen, weil die Straße von Hormus "
+            "blockiert ist. Vielleicht wäre ein Waffenstillstand doch eine "
+            "gute Idee, aber wer will schon Frieden, wenn man sich gegenseitig "
+            "bombardieren kann?"
         ),
         glossary={
-            "der Forscher": "the researcher",
-            "entdecken": "to discover",
-            "die Tiefe": "the depth",
-            "leuchten": "to glow / shine",
-            "anlocken": "to attract / lure",
-            "untersuchen": "to examine / study",
+            "eskalieren": "to escalate",
+            "die Angriffe": "attacks",
+            "die Brücken": "bridges",
+            "die Bahnhöfe": "train stations",
+            "die Entsalzungsanlage": "desalination plant",
+            "das Trinkwasser": "drinking water",
+            "die Ölpreise": "oil prices",
+            "die Straße von Hormus": "Strait of Hormuz",
+            "der Waffenstillstand": "ceasefire",
         },
     ),
     MockNewsItem(
-        id="wahl",
-        title="Estland wählt digital – ein Vorbild?",
-        source="Politik Aktuell",
-        date="15. Juli 2026",
+        id="uk",
+        title="Großbritannien bekommt einen neuen Premier – wieder mal",
+        source="FP's Alexandra Sharp (World Brief)",
+        date="17. Juli 2026",
         content=(
-            "In Estland können die Menschen seit vielen Jahren über das "
-            "Internet wählen. Man braucht nur einen Computer und einen "
-            "besonderen Ausweis. Viele andere Länder schauen jetzt genau nach "
-            "Estland, weil die Wahl dort schnell und sicher ist. Kritiker "
-            "warnen aber vor Hackern und Betrug. Trotzdem sind die meisten "
-            "Bürgerinnen und Bürger mit dem System zufrieden."
+            "Großbritannien hat einen neuen Labour-Chef gewählt: Andy Burnham, "
+            "der frühere Bürgermeister von Manchester. Er wird König Charles "
+            "III. bitten, eine Regierung zu bilden, und das ist der siebte "
+            "Premier seit 2016. Die Labour-Partei hat mit Skandalen zu "
+            "kämpfen, und die rechte Reform UK-Partei ist in den Umfragen "
+            "stark. Burnham verspricht große Wirtschaftsreformen, aber ob das "
+            "reicht, um die Leute zu überzeugen? Wahrscheinlich nicht, aber "
+            "zumindest gibt es jetzt einen neuen Namen, den man sich merken "
+            "muss."
         ),
         glossary={
-            "wählen": "to vote / elect",
-            "der Ausweis": "the ID card",
-            "das Vorbild": "the role model / example",
-            "der Kritiker": "the critic",
-            "der Betrug": "the fraud",
-            "zufrieden": "satisfied / content",
+            "der Premier": "prime minister",
+            "der Bürgermeister": "mayor",
+            "die Regierung bilden": "to form a government",
+            "die Skandale": "scandals",
+            "die Umfragen": "polls",
+            "die Wirtschaftsreformen": "economic reforms",
+        },
+    ),
+    MockNewsItem(
+        id="china",
+        title="China bestreitet Einmischung in US-Wahlen – Trump spinnt weiter",
+        source="FP's Alexandra Sharp (World Brief)",
+        date="17. Juli 2026",
+        content=(
+            "China hat bestritten, sich in die US-Wahl 2020 eingemischt zu "
+            "haben, nachdem Trump wieder einmal Verschwörungstheorien "
+            "verbreitet hat. Trump behauptet, China habe 220 Millionen US-"
+            "Wählerdaten gestohlen, aber diese Daten sind öffentlich und "
+            "können gekauft werden. Ein Geheimdienstbericht aus dem Jahr 2021 "
+            "hat bereits festgestellt, dass China die Daten gesammelt hat, um "
+            "den Wahlausgang vorherzusagen, nicht um ihn zu manipulieren. "
+            "Experten sagen, Trump will nur Zweifel an den Wahlen säen, weil "
+            "seine Umfragewerte im Keller sind. Aber wer braucht schon Fakten, "
+            "wenn man eine gute Geschichte hat?"
+        ),
+        glossary={
+            "bestreiten": "to deny",
+            "die Einmischung": "interference",
+            "die Verschwörungstheorien": "conspiracy theories",
+            "die Wählerdaten": "voter data",
+            "der Geheimdienstbericht": "intelligence report",
+            "den Wahlausgang vorhersagen": "to predict the election outcome",
+            "manipulieren": "to manipulate",
+            "Zweifel säen": "to sow doubt",
+            "die Umfragewerte": "poll numbers",
+        },
+    ),
+    MockNewsItem(
+        id="japan",
+        title="Japan: Nur Männer dürfen Kaiser werden – das wird lustig",
+        source="FP's Alexandra Sharp (World Brief)",
+        date="17. Juli 2026",
+        content=(
+            "Das japanische Parlament hat ein Gesetz verabschiedet, das nur "
+            "Männern erlaubt, Kaiser zu werden. Das Problem: Von 16 "
+            "erwachsenen Mitgliedern der kaiserlichen Familie sind nur fünf "
+            "Männer. Prinzessin Aiko ist sehr beliebt, aber sie darf nicht auf "
+            "den Thron. Stattdessen will die Regierung entfernte männliche "
+            "Verwandte adoptieren, um die Thronfolge zu sichern. Feministinnen "
+            "nennen das „Zuchtstuten-Politik“, und sie haben wahrscheinlich "
+            "recht. Aber hey, Tradition ist Tradition, auch wenn sie dumm ist."
+        ),
+        glossary={
+            "das Gesetz verabschieden": "to pass a law",
+            "der Kaiser": "emperor",
+            "die kaiserliche Familie": "imperial family",
+            "die Thronfolge": "succession to the throne",
+            "entfernte Verwandte": "distant relatives",
+            "adoptieren": "to adopt",
+            "die Feministinnen": "feminists",
+            "die Zuchtstuten-Politik": "breeding mare policy",
+        },
+    ),
+    MockNewsItem(
+        id="fussball",
+        title="Fußballgeschichte: Wie die Briten den Rest der Welt das Kicken lehrten",
+        source="Histories",
+        date="18. Juli 2026",
+        content=(
+            "In dieser Ausgabe von Histories geht es um die Entstehung des "
+            "modernen Fußballs. Im 19. Jahrhundert spielten englische "
+            "Privatschulen verschiedene Versionen von „Football“, aber erst in "
+            "Cambridge wurden die Regeln vereinheitlicht. Der Fußballverband "
+            "(FA) wurde 1863 gegründet, und die FA-Cup-Regeln verbreiteten "
+            "sich weltweit durch britische Expatriates. In Brasilien brachte "
+            "Charles Miller das Spiel, in Italien gründeten Briten den AC "
+            "Mailand, und in Argentinien halfen britische Lehrer, die "
+            "nationale Liga aufzubauen. Ohne die Briten gäbe es vielleicht "
+            "keinen Fußball, wie wir ihn kennen – oder vielleicht wäre es "
+            "einfach Rugby geworden."
+        ),
+        glossary={
+            "die Entstehung": "origin / emergence",
+            "die Privatschulen": "private schools",
+            "die Regeln vereinheitlichen": "to unify the rules",
+            "der Fußballverband": "football association",
+            "sich verbreiten": "to spread",
+            "die Expatriates": "expatriates",
+            "die nationale Liga": "national league",
+            "aufbauen": "to build / establish",
         },
     ),
 ]
@@ -232,6 +302,7 @@ class MessageKey(Enum):
     BTN_SHOW_NEWS = "btn_show_news"
     BTN_DONE = "btn_done"
     BTN_CLEAR = "btn_clear"
+    BTN_BACK = "btn_back"
     PREPARING = "preparing"
     DONE = "done"
     SELECT_AT_LEAST_ONE = "select_at_least_one"
@@ -263,6 +334,7 @@ _TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
         MessageKey.BTN_SHOW_NEWS: "📰 Nachrichten anzeigen",
         MessageKey.BTN_DONE: "✔️ Fertig",
         MessageKey.BTN_CLEAR: "✖️ Leeren",
+        MessageKey.BTN_BACK: "⬅️ Zurück",
         MessageKey.PREPARING: "✍️ Ich bereite {count} Lesetext(e) vor …",
         MessageKey.DONE: "✅ Fertig.",
         MessageKey.SELECT_AT_LEAST_ONE: (
@@ -286,6 +358,7 @@ _TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
         MessageKey.BTN_SHOW_NEWS: "📰 Show news",
         MessageKey.BTN_DONE: "✔️ Done",
         MessageKey.BTN_CLEAR: "✖️ Clear",
+        MessageKey.BTN_BACK: "⬅️ Back",
         MessageKey.PREPARING: "✍️ Preparing {count} reading(s) …",
         MessageKey.DONE: "✅ Done.",
         MessageKey.SELECT_AT_LEAST_ONE: "Select at least one article first.",
@@ -424,6 +497,9 @@ def _build_keyboard(
             ),
         )
     rows.append(action_row)
+    rows.append(
+        [InlineKeyboardButton(messages.get(MessageKey.BTN_BACK), callback_data=CB_MENU)]
+    )
     return InlineKeyboardMarkup(rows)
 
 
@@ -516,17 +592,23 @@ async def _send_news_list(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
 
+async def _send_menu(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Post the entry menu (language picker + settings) in the known language."""
+    known = _known_messages(context)
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=known.get(MessageKey.MENU_HEADER),
+        parse_mode="HTML",
+        reply_markup=_menu_markup(known),
+    )
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     allowed: set[int] = context.bot_data["allowed_user_ids"]
     if not _is_authorized(update, allowed):
         log.info("Ignoring /start from unauthorized user %s", update.effective_user)
         return
-    known = _known_messages(context)
-    await update.message.reply_text(
-        known.get(MessageKey.MENU_HEADER),
-        parse_mode="HTML",
-        reply_markup=_menu_markup(known),
-    )
+    await _send_menu(update.effective_chat.id, context)
 
 
 async def news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -566,6 +648,11 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if data == CB_SETTINGS:
         await query.answer()
         await query.message.reply_text(known.get(MessageKey.NOT_IMPLEMENTED))
+        return
+
+    if data == CB_MENU:
+        await query.answer()
+        await _send_menu(update.effective_chat.id, context)
         return
 
     # From here on we are inside a learning session → learning-language UI.
@@ -624,8 +711,12 @@ async def _deliver(
     messages = _learning_messages(context)
     chat_id = update.effective_chat.id
 
-    # Intro is generated after the articles are chosen/processed, shown first.
+    # Simulate the LLM generating the whole digest (intro + per-article
+    # transforms) before anything is delivered.
     await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+    await asyncio.sleep(random.uniform(LLM_DELAY_MIN_S, LLM_DELAY_MAX_S))
+
+    # Intro is generated after the articles are chosen/processed, shown first.
     await context.bot.send_message(
         chat_id=chat_id, text=_generate_intro(picks), parse_mode="HTML"
     )
