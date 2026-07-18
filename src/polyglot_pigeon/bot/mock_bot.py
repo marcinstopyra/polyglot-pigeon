@@ -18,6 +18,7 @@ Then open the bot and press START — everything after that is button-driven.
 import html
 import logging
 import os
+from enum import Enum
 
 from pydantic import Field
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -180,6 +181,104 @@ MOCK_NEWS: list[MockNewsItem] = [
 MOCK_NEWS_BY_ID: dict[str, MockNewsItem] = {item.id: item for item in MOCK_NEWS}
 
 
+# ── System messages (i18n) ────────────────────────────────────────────────────
+#
+# The bot's own UI is rendered in the *target* language. Every UI string has a
+# key; ``MessageCatalog.get`` resolves key + language to text. Here the catalog
+# is backed by a hardcoded dict, but that ``get`` is exactly the "fetch the
+# translation by key" the real backend will do against a SQL
+# ``ui_message(key, lang, text)`` table — so swapping the backing store leaves
+# every call site unchanged. English is kept as a fallback and to show the
+# store holding one row per (key, language).
+
+
+class MessageKey(Enum):
+    """Stable keys for the bot's UI strings (never shown to the user)."""
+
+    WELCOME = "welcome"
+    NEWS_LIST_HEADER = "news_list_header"
+    BTN_SHOW_NEWS = "btn_show_news"
+    BTN_DONE = "btn_done"
+    BTN_CLEAR = "btn_clear"
+    PREPARING = "preparing"
+    DONE = "done"
+    SELECT_AT_LEAST_ONE = "select_at_least_one"
+    NOT_AUTHORIZED = "not_authorized"
+    CLEARED = "cleared"
+
+
+# Language the UI is shown in (the real app reads this from LanguageConfig).
+UI_LANGUAGE = "de"
+FALLBACK_LANGUAGE = "en"
+
+_TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
+    "de": {
+        MessageKey.WELCOME: (
+            "🕊️ <b>PolyglotPigeon</b> (Prototyp)\n\n"
+            "Tippen Sie auf die Schaltfläche unten, um die heutigen "
+            "Schlagzeilen zu sehen. Wählen Sie die gewünschten Artikel aus, "
+            "und ich schicke Ihnen einen Text auf Deutsch (B1) mit einem "
+            "englischen Glossar.\n\n"
+            "<i>Das Backend ist simuliert — die Inhalte sind fest hinterlegte "
+            "Beispieldaten.</i>"
+        ),
+        MessageKey.NEWS_LIST_HEADER: (
+            "📰 <b>Verfügbare Nachrichten</b>\n"
+            "Tippen Sie auf die Titel zum Auswählen und dann auf <b>Fertig</b>:"
+        ),
+        MessageKey.BTN_SHOW_NEWS: "📰 Nachrichten anzeigen",
+        MessageKey.BTN_DONE: "✔️ Fertig",
+        MessageKey.BTN_CLEAR: "✖️ Leeren",
+        MessageKey.PREPARING: "✍️ Ich bereite {count} Lesetext(e) vor …",
+        MessageKey.DONE: "✅ Fertig.",
+        MessageKey.SELECT_AT_LEAST_ONE: (
+            "Bitte wählen Sie zuerst mindestens einen Artikel aus."
+        ),
+        MessageKey.NOT_AUTHORIZED: "Kein Zugriff.",
+        MessageKey.CLEARED: "Auswahl geleert.",
+    },
+    "en": {
+        MessageKey.WELCOME: (
+            "🕊️ <b>PolyglotPigeon</b> (prototype)\n\n"
+            "Tap the button below to see today's headlines, pick the ones you "
+            "want, and I'll send you a German (B1) reading with an English "
+            "glossary.\n\n"
+            "<i>Backend is mocked — content is hardcoded sample data.</i>"
+        ),
+        MessageKey.NEWS_LIST_HEADER: (
+            "📰 <b>Available news</b>\nTap titles to select, then press <b>Done</b>:"
+        ),
+        MessageKey.BTN_SHOW_NEWS: "📰 Show news",
+        MessageKey.BTN_DONE: "✔️ Done",
+        MessageKey.BTN_CLEAR: "✖️ Clear",
+        MessageKey.PREPARING: "✍️ Preparing {count} reading(s) …",
+        MessageKey.DONE: "✅ Done.",
+        MessageKey.SELECT_AT_LEAST_ONE: "Select at least one article first.",
+        MessageKey.NOT_AUTHORIZED: "Not authorized.",
+        MessageKey.CLEARED: "Cleared.",
+    },
+}
+
+
+class MessageCatalog:
+    """Resolves UI message keys to text in a chosen language.
+
+    Mock stand-in for a SQL-backed ``ui_message(key, lang, text)`` table:
+    ``get`` is the "fetch translation by key" the real backend will perform.
+    """
+
+    def __init__(
+        self, language: str = UI_LANGUAGE, fallback: str = FALLBACK_LANGUAGE
+    ) -> None:
+        self.language = language
+        self.fallback = fallback
+
+    def get(self, key: MessageKey, **params: object) -> str:
+        table = _TRANSLATIONS.get(self.language, {})
+        text = table.get(key) or _TRANSLATIONS[self.fallback][key]
+        return text.format(**params) if params else text
+
+
 # ── Access control ────────────────────────────────────────────────────────────
 
 
@@ -227,14 +326,22 @@ def _button_label(item: MockNewsItem, selected: bool) -> str:
     return f"{check}{title}"
 
 
-def _show_news_markup() -> InlineKeyboardMarkup:
+def _show_news_markup(messages: "MessageCatalog") -> InlineKeyboardMarkup:
     """A single button that opens the news list (used instead of typing /news)."""
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("📰 Show news", callback_data=CB_NEWS)]]
+        [
+            [
+                InlineKeyboardButton(
+                    messages.get(MessageKey.BTN_SHOW_NEWS), callback_data=CB_NEWS
+                )
+            ]
+        ]
     )
 
 
-def _build_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
+def _build_keyboard(
+    selected: set[str], messages: "MessageCatalog"
+) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(
@@ -244,9 +351,16 @@ def _build_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
         ]
         for item in MOCK_NEWS
     ]
-    action_row = [InlineKeyboardButton("✔️ Done", callback_data=CB_DONE)]
+    action_row = [
+        InlineKeyboardButton(messages.get(MessageKey.BTN_DONE), callback_data=CB_DONE)
+    ]
     if selected:
-        action_row.insert(0, InlineKeyboardButton("✖️ Clear", callback_data=CB_CLEAR))
+        action_row.insert(
+            0,
+            InlineKeyboardButton(
+                messages.get(MessageKey.BTN_CLEAR), callback_data=CB_CLEAR
+            ),
+        )
     rows.append(action_row)
     return InlineKeyboardMarkup(rows)
 
@@ -269,6 +383,22 @@ def _format_article(item: MockNewsItem) -> str:
         for word, translation in item.glossary.items():
             parts.append(f"<b>{html.escape(word)}</b>: {html.escape(translation)}")
     return "\n".join(parts)
+
+
+def _generate_intro(picks: list[MockNewsItem]) -> str:
+    """Build a short journalistic intro from the chosen articles (German B1).
+
+    Mock stand-in for ``TargetEmailContent.introduction``, which the real
+    pipeline writes with the LLM *last* — after the articles are chosen and
+    processed. It is generated here, then shown before the readings.
+    """
+    titles = [f"«{html.escape(p.title)}»" for p in picks]
+    if len(titles) == 1:
+        body = f"Heute haben Sie ein Thema ausgewählt: {titles[0]}."
+    else:
+        joined = ", ".join(titles[:-1]) + f" und {titles[-1]}"
+        body = f"Heute schauen wir auf {len(titles)} Themen: {joined}."
+    return f"📖 <b>Guten Tag!</b>\n\n{body} Viel Spaß beim Lesen und Lernen!"
 
 
 def _split_for_telegram(text: str, limit: int = TELEGRAM_MAX_CHARS) -> list[str]:
@@ -299,14 +429,19 @@ def _split_for_telegram(text: str, limit: int = TELEGRAM_MAX_CHARS) -> list[str]
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 
+def _messages(context: ContextTypes.DEFAULT_TYPE) -> "MessageCatalog":
+    return context.bot_data["messages"]
+
+
 async def _send_news_list(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reset the selection and post the multi-select news list."""
+    messages = _messages(context)
     _selected_ids(context).clear()
     await context.bot.send_message(
         chat_id=chat_id,
-        text="📰 <b>Available news</b>\nTap titles to select, then press <b>Done</b>:",
+        text=messages.get(MessageKey.NEWS_LIST_HEADER),
         parse_mode="HTML",
-        reply_markup=_build_keyboard(set()),
+        reply_markup=_build_keyboard(set(), messages),
     )
 
 
@@ -315,14 +450,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_authorized(update, allowed):
         log.info("Ignoring /start from unauthorized user %s", update.effective_user)
         return
+    messages = _messages(context)
     await update.message.reply_text(
-        "🕊️ <b>PolyglotPigeon</b> (prototype)\n\n"
-        "Tap the button below to see today's headlines, pick the ones you "
-        "want, and I'll send you a German (B1) reading with an English "
-        "glossary.\n\n"
-        "<i>Backend is mocked — content is hardcoded sample data.</i>",
+        messages.get(MessageKey.WELCOME),
         parse_mode="HTML",
-        reply_markup=_show_news_markup(),
+        reply_markup=_show_news_markup(messages),
     )
 
 
@@ -337,8 +469,9 @@ async def news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     allowed: set[int] = context.bot_data["allowed_user_ids"]
     query = update.callback_query
+    messages = _messages(context)
     if not _is_authorized(update, allowed):
-        await query.answer("Not authorized.", show_alert=True)
+        await query.answer(messages.get(MessageKey.NOT_AUTHORIZED), show_alert=True)
         return
 
     selected = _selected_ids(context)
@@ -357,23 +490,29 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             else:
                 selected.add(item_id)
         await query.answer()
-        await query.edit_message_reply_markup(reply_markup=_build_keyboard(selected))
+        await query.edit_message_reply_markup(
+            reply_markup=_build_keyboard(selected, messages)
+        )
         return
 
     if data == CB_CLEAR:
         selected.clear()
-        await query.answer("Cleared.")
-        await query.edit_message_reply_markup(reply_markup=_build_keyboard(selected))
+        await query.answer(messages.get(MessageKey.CLEARED))
+        await query.edit_message_reply_markup(
+            reply_markup=_build_keyboard(selected, messages)
+        )
         return
 
     if data == CB_DONE:
         if not selected:
-            await query.answer("Select at least one article first.", show_alert=True)
+            await query.answer(
+                messages.get(MessageKey.SELECT_AT_LEAST_ONE), show_alert=True
+            )
             return
         await query.answer()
         picks = [item for item in MOCK_NEWS if item.id in selected]
         await query.edit_message_text(
-            f"✍️ Preparing {len(picks)} reading(s)…", parse_mode="HTML"
+            messages.get(MessageKey.PREPARING, count=len(picks)), parse_mode="HTML"
         )
         await _deliver(update, context, picks)
         selected.clear()
@@ -388,7 +527,15 @@ async def _deliver(
     picks: list[MockNewsItem],
 ) -> None:
     """Send the (mock) transformed learning content for each pick."""
+    messages = _messages(context)
     chat_id = update.effective_chat.id
+
+    # Intro is generated after the articles are chosen/processed, shown first.
+    await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+    await context.bot.send_message(
+        chat_id=chat_id, text=_generate_intro(picks), parse_mode="HTML"
+    )
+
     for item in picks:
         # Simulate the "transform on selection" latency of the real backend.
         await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
@@ -398,18 +545,23 @@ async def _deliver(
             )
     await context.bot.send_message(
         chat_id=chat_id,
-        text="✅ Done.",
-        reply_markup=_show_news_markup(),
+        text=messages.get(MessageKey.DONE),
+        reply_markup=_show_news_markup(messages),
     )
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 
-def build_application(token: str, allowed_user_ids: set[int]) -> Application:
+def build_application(
+    token: str,
+    allowed_user_ids: set[int],
+    ui_language: str = UI_LANGUAGE,
+) -> Application:
     """Construct the bot application with handlers registered."""
     app = Application.builder().token(token).build()
     app.bot_data["allowed_user_ids"] = allowed_user_ids
+    app.bot_data["messages"] = MessageCatalog(language=ui_language)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("news", news))
     app.add_handler(CallbackQueryHandler(on_button))
