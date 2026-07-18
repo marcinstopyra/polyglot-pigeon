@@ -12,7 +12,7 @@ Run it with a BotFather token::
     export TELEGRAM_ALLOWED_USER_IDS="11111111"   # optional; empty = allow all
     PYTHONPATH=src python -m polyglot_pigeon.bot.mock_bot
 
-Then message the bot: ``/start`` then ``/news``.
+Then open the bot and press START — everything after that is button-driven.
 """
 
 import html
@@ -42,6 +42,7 @@ BUTTON_LABEL_MAX = 48
 CB_TOGGLE = "toggle:"
 CB_DONE = "done"
 CB_CLEAR = "clear"
+CB_NEWS = "news"
 
 
 # ── Mock data ─────────────────────────────────────────────────────────────────
@@ -226,6 +227,13 @@ def _button_label(item: MockNewsItem, selected: bool) -> str:
     return f"{check}{title}"
 
 
+def _show_news_markup() -> InlineKeyboardMarkup:
+    """A single button that opens the news list (used instead of typing /news)."""
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("📰 Show news", callback_data=CB_NEWS)]]
+    )
+
+
 def _build_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
         [
@@ -291,6 +299,17 @@ def _split_for_telegram(text: str, limit: int = TELEGRAM_MAX_CHARS) -> list[str]
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 
+async def _send_news_list(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reset the selection and post the multi-select news list."""
+    _selected_ids(context).clear()
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="📰 <b>Available news</b>\nTap titles to select, then press <b>Done</b>:",
+        parse_mode="HTML",
+        reply_markup=_build_keyboard(set()),
+    )
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     allowed: set[int] = context.bot_data["allowed_user_ids"]
     if not _is_authorized(update, allowed):
@@ -298,10 +317,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     await update.message.reply_text(
         "🕊️ <b>PolyglotPigeon</b> (prototype)\n\n"
-        "Send /news to see today's headlines, pick the ones you want, and "
-        "I'll send you a German (B1) reading with an English glossary.\n\n"
+        "Tap the button below to see today's headlines, pick the ones you "
+        "want, and I'll send you a German (B1) reading with an English "
+        "glossary.\n\n"
         "<i>Backend is mocked — content is hardcoded sample data.</i>",
         parse_mode="HTML",
+        reply_markup=_show_news_markup(),
     )
 
 
@@ -310,12 +331,7 @@ async def news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_authorized(update, allowed):
         log.info("Ignoring /news from unauthorized user %s", update.effective_user)
         return
-    _selected_ids(context).clear()
-    await update.message.reply_text(
-        "📰 <b>Available news</b>\nTap titles to select, then press <b>Done</b>:",
-        parse_mode="HTML",
-        reply_markup=_build_keyboard(set()),
-    )
+    await _send_news_list(update.effective_chat.id, context)
 
 
 async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -327,6 +343,11 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     selected = _selected_ids(context)
     data = query.data or ""
+
+    if data == CB_NEWS:
+        await query.answer()
+        await _send_news_list(update.effective_chat.id, context)
+        return
 
     if data.startswith(CB_TOGGLE):
         item_id = data[len(CB_TOGGLE) :]
@@ -377,7 +398,8 @@ async def _deliver(
             )
     await context.bot.send_message(
         chat_id=chat_id,
-        text="✅ Done. Send /news for more.",
+        text="✅ Done.",
+        reply_markup=_show_news_markup(),
     )
 
 
