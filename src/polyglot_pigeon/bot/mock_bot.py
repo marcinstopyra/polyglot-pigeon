@@ -44,6 +44,8 @@ CB_TOGGLE = "toggle:"
 CB_DONE = "done"
 CB_CLEAR = "clear"
 CB_NEWS = "news"
+CB_LANG = "lang:"
+CB_SETTINGS = "settings"
 
 
 # ── Mock data ─────────────────────────────────────────────────────────────────
@@ -181,21 +183,51 @@ MOCK_NEWS: list[MockNewsItem] = [
 MOCK_NEWS_BY_ID: dict[str, MockNewsItem] = {item.id: item for item in MOCK_NEWS}
 
 
+# ── Learning languages (mock) ─────────────────────────────────────────────────
+#
+# A user can have several languages assigned. Only German is wired up; the
+# others exist to show the multi-language entry point. ``label`` is written in
+# the language itself (never translated); the surrounding menu chrome is shown
+# in the user's *known* language.
+
+
+class LearningOption(MyBaseModel):
+    """One language/level a user can practise from the entry menu."""
+
+    code: str  # language code used to resolve content + UI (e.g. "de")
+    label: str  # display name in its own language, e.g. "Deutsch B1"
+    emoji: str
+    implemented: bool = False
+
+
+LEARNING_OPTIONS: list[LearningOption] = [
+    LearningOption(code="de", label="Deutsch B1", emoji="🥨", implemented=True),
+    LearningOption(code="ru", label="Русский C1", emoji="🪆", implemented=False),
+]
+LEARNING_OPTIONS_BY_CODE: dict[str, LearningOption] = {
+    o.code: o for o in LEARNING_OPTIONS
+}
+
+
 # ── System messages (i18n) ────────────────────────────────────────────────────
 #
-# The bot's own UI is rendered in the *target* language. Every UI string has a
-# key; ``MessageCatalog.get`` resolves key + language to text. Here the catalog
-# is backed by a hardcoded dict, but that ``get`` is exactly the "fetch the
-# translation by key" the real backend will do against a SQL
-# ``ui_message(key, lang, text)`` table — so swapping the backing store leaves
-# every call site unchanged. English is kept as a fallback and to show the
-# store holding one row per (key, language).
+# Every UI string has a key; ``MessageCatalog.get`` resolves key + language to
+# text. Here the catalog is backed by a hardcoded dict, but that ``get`` is
+# exactly the "fetch the translation by key" the real backend will do against a
+# SQL ``ui_message(key, lang, text)`` table — so swapping the backing store
+# leaves every call site unchanged.
+#
+# Two languages are in play: the entry menu / settings are shown in the user's
+# *known* language, while the news-reading flow is shown in the *target*
+# (learning) language they picked.
 
 
 class MessageKey(Enum):
     """Stable keys for the bot's UI strings (never shown to the user)."""
 
-    WELCOME = "welcome"
+    MENU_HEADER = "menu_header"
+    BTN_SETTINGS = "btn_settings"
+    NOT_IMPLEMENTED = "not_implemented"
     NEWS_LIST_HEADER = "news_list_header"
     BTN_SHOW_NEWS = "btn_show_news"
     BTN_DONE = "btn_done"
@@ -207,21 +239,23 @@ class MessageKey(Enum):
     CLEARED = "cleared"
 
 
-# Language the UI is shown in (the real app reads this from LanguageConfig).
-UI_LANGUAGE = "de"
+# Known language: the user's own language (menu/settings chrome).
+KNOWN_LANGUAGE = "en"
+# Default learning language when none has been picked yet.
+DEFAULT_LEARNING_LANGUAGE = "de"
 FALLBACK_LANGUAGE = "en"
 
 _TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
     "de": {
-        MessageKey.WELCOME: (
+        MessageKey.MENU_HEADER: (
             "🕊️ <b>PolyglotPigeon</b> (Prototyp)\n\n"
-            "Tippen Sie auf die Schaltfläche unten, um die heutigen "
-            "Schlagzeilen zu sehen. Wählen Sie die gewünschten Artikel aus, "
-            "und ich schicke Ihnen einen Text auf Deutsch (B1) mit einem "
-            "englischen Glossar.\n\n"
+            "Was möchtest du üben? Wähle eine Sprache oder öffne die "
+            "Einstellungen.\n\n"
             "<i>Das Backend ist simuliert — die Inhalte sind fest hinterlegte "
             "Beispieldaten.</i>"
         ),
+        MessageKey.BTN_SETTINGS: "⚙️ Einstellungen",
+        MessageKey.NOT_IMPLEMENTED: "🚧 Noch nicht implementiert.",
         MessageKey.NEWS_LIST_HEADER: (
             "📰 <b>Verfügbare Nachrichten</b>\n"
             "Tippen Sie auf die Titel zum Auswählen und dann auf <b>Fertig</b>:"
@@ -238,13 +272,14 @@ _TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
         MessageKey.CLEARED: "Auswahl geleert.",
     },
     "en": {
-        MessageKey.WELCOME: (
+        MessageKey.MENU_HEADER: (
             "🕊️ <b>PolyglotPigeon</b> (prototype)\n\n"
-            "Tap the button below to see today's headlines, pick the ones you "
-            "want, and I'll send you a German (B1) reading with an English "
-            "glossary.\n\n"
+            "What would you like to practise? Pick a language below, or open "
+            "settings.\n\n"
             "<i>Backend is mocked — content is hardcoded sample data.</i>"
         ),
+        MessageKey.BTN_SETTINGS: "⚙️ Settings",
+        MessageKey.NOT_IMPLEMENTED: "🚧 Not implemented yet.",
         MessageKey.NEWS_LIST_HEADER: (
             "📰 <b>Available news</b>\nTap titles to select, then press <b>Done</b>:"
         ),
@@ -268,7 +303,9 @@ class MessageCatalog:
     """
 
     def __init__(
-        self, language: str = UI_LANGUAGE, fallback: str = FALLBACK_LANGUAGE
+        self,
+        language: str = DEFAULT_LEARNING_LANGUAGE,
+        fallback: str = FALLBACK_LANGUAGE,
     ) -> None:
         self.language = language
         self.fallback = fallback
@@ -324,6 +361,31 @@ def _button_label(item: MockNewsItem, selected: bool) -> str:
     if len(title) > room:
         title = title[: room - 1].rstrip() + "…"
     return f"{check}{title}"
+
+
+def _menu_markup(known: "MessageCatalog") -> InlineKeyboardMarkup:
+    """Entry menu: one button per learning language, plus settings.
+
+    Language labels are shown in their own language; the settings label is in
+    the user's known language.
+    """
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                f"{option.emoji} {option.label}",
+                callback_data=f"{CB_LANG}{option.code}",
+            )
+        ]
+        for option in LEARNING_OPTIONS
+    ]
+    rows.append(
+        [
+            InlineKeyboardButton(
+                known.get(MessageKey.BTN_SETTINGS), callback_data=CB_SETTINGS
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(rows)
 
 
 def _show_news_markup(messages: "MessageCatalog") -> InlineKeyboardMarkup:
@@ -386,19 +448,21 @@ def _format_article(item: MockNewsItem) -> str:
 
 
 def _generate_intro(picks: list[MockNewsItem]) -> str:
-    """Build a short journalistic intro from the chosen articles (German B1).
+    """Return a journalistic intro summarising the chosen articles (German).
 
     Mock stand-in for ``TargetEmailContent.introduction``, which the real
     pipeline writes with the LLM *last* — after the articles are chosen and
-    processed. It is generated here, then shown before the readings.
+    processed — so it can actually describe their content. For now it returns
+    a fixed sample paragraph.
     """
-    titles = [f"«{html.escape(p.title)}»" for p in picks]
-    if len(titles) == 1:
-        body = f"Heute haben Sie ein Thema ausgewählt: {titles[0]}."
-    else:
-        joined = ", ".join(titles[:-1]) + f" und {titles[-1]}"
-        body = f"Heute schauen wir auf {len(titles)} Themen: {joined}."
-    return f"📖 <b>Guten Tag!</b>\n\n{body} Viel Spaß beim Lesen und Lernen!"
+    return (
+        "Diese Woche gibt es viel zu besprechen: Die Ukraine entlässt ihren "
+        "Reform-Verteidigungsminister, der Iran und die USA liefern sich eine "
+        "neue Runde von Angriffen, und währenddessen eröffnet Chipotle sein "
+        "erstes Restaurant in Mexiko. Außerdem: die besten Sommerbücher und "
+        "eine Geschichtsstunde über die wahren Ursprünge des Fußballs. Alles "
+        "brennt, aber wir haben Popcorn."
+    )
 
 
 def _split_for_telegram(text: str, limit: int = TELEGRAM_MAX_CHARS) -> list[str]:
@@ -429,13 +493,20 @@ def _split_for_telegram(text: str, limit: int = TELEGRAM_MAX_CHARS) -> list[str]
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 
-def _messages(context: ContextTypes.DEFAULT_TYPE) -> "MessageCatalog":
-    return context.bot_data["messages"]
+def _known_messages(context: ContextTypes.DEFAULT_TYPE) -> "MessageCatalog":
+    """Catalog for the user's known language (entry menu / settings chrome)."""
+    return MessageCatalog(language=context.bot_data["known_language"])
+
+
+def _learning_messages(context: ContextTypes.DEFAULT_TYPE) -> "MessageCatalog":
+    """Catalog for the active learning language (the news-reading flow)."""
+    lang = context.user_data.get("learning_language", DEFAULT_LEARNING_LANGUAGE)
+    return MessageCatalog(language=lang)
 
 
 async def _send_news_list(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reset the selection and post the multi-select news list."""
-    messages = _messages(context)
+    messages = _learning_messages(context)
     _selected_ids(context).clear()
     await context.bot.send_message(
         chat_id=chat_id,
@@ -450,11 +521,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_authorized(update, allowed):
         log.info("Ignoring /start from unauthorized user %s", update.effective_user)
         return
-    messages = _messages(context)
+    known = _known_messages(context)
     await update.message.reply_text(
-        messages.get(MessageKey.WELCOME),
+        known.get(MessageKey.MENU_HEADER),
         parse_mode="HTML",
-        reply_markup=_show_news_markup(messages),
+        reply_markup=_menu_markup(known),
     )
 
 
@@ -469,13 +540,36 @@ async def news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     allowed: set[int] = context.bot_data["allowed_user_ids"]
     query = update.callback_query
-    messages = _messages(context)
+    known = _known_messages(context)
     if not _is_authorized(update, allowed):
-        await query.answer(messages.get(MessageKey.NOT_AUTHORIZED), show_alert=True)
+        await query.answer(known.get(MessageKey.NOT_AUTHORIZED), show_alert=True)
         return
 
     selected = _selected_ids(context)
     data = query.data or ""
+
+    if data.startswith(CB_LANG):
+        code = data[len(CB_LANG) :]
+        option = LEARNING_OPTIONS_BY_CODE.get(code)
+        if option is None:
+            await query.answer()
+            return
+        if not option.implemented:
+            await query.answer()
+            await query.message.reply_text(known.get(MessageKey.NOT_IMPLEMENTED))
+            return
+        context.user_data["learning_language"] = code
+        await query.answer()
+        await _send_news_list(update.effective_chat.id, context)
+        return
+
+    if data == CB_SETTINGS:
+        await query.answer()
+        await query.message.reply_text(known.get(MessageKey.NOT_IMPLEMENTED))
+        return
+
+    # From here on we are inside a learning session → learning-language UI.
+    messages = _learning_messages(context)
 
     if data == CB_NEWS:
         await query.answer()
@@ -527,7 +621,7 @@ async def _deliver(
     picks: list[MockNewsItem],
 ) -> None:
     """Send the (mock) transformed learning content for each pick."""
-    messages = _messages(context)
+    messages = _learning_messages(context)
     chat_id = update.effective_chat.id
 
     # Intro is generated after the articles are chosen/processed, shown first.
@@ -556,12 +650,12 @@ async def _deliver(
 def build_application(
     token: str,
     allowed_user_ids: set[int],
-    ui_language: str = UI_LANGUAGE,
+    known_language: str = KNOWN_LANGUAGE,
 ) -> Application:
     """Construct the bot application with handlers registered."""
     app = Application.builder().token(token).build()
     app.bot_data["allowed_user_ids"] = allowed_user_ids
-    app.bot_data["messages"] = MessageCatalog(language=ui_language)
+    app.bot_data["known_language"] = known_language
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("news", news))
     app.add_handler(CallbackQueryHandler(on_button))
