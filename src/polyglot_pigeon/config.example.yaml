@@ -45,3 +45,10 @@ target_email:
 schedule:
   time: "08:00"      # when to send the daily digest (24h format)
   timezone: "Europe/Warsaw"  # IANA timezone name
+
+# Telegram bot (interactive prototype) — only needed to run the bot process
+telegram:
+  token: "123456:ABC-DEF..."   # bot token from @BotFather
+  whitelisted_users:           # Telegram numeric user IDs allowed to use the bot
+    - 11111111
+  # Leave whitelisted_users empty ([]) to allow anyone — not recommended

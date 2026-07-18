@@ -80,6 +80,7 @@ def test_full_config():
             "show_cost_in_footer": True,
             "prompts_path": "/app/prompts.yaml",
         },
+        "telegram": None,
     }
 
 

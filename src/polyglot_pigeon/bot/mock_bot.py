@@ -6,21 +6,21 @@ delivery) can be tried in Telegram before any real backend exists. There
 is no IMAP, no LLM, and no database here: the news items and their
 "learning" transforms are hardcoded German-B1 / English samples.
 
-Run it with a BotFather token::
+Configure ``telegram.token`` and ``telegram.whitelisted_users`` in the same
+config file the rest of the app uses, then run::
 
-    export TELEGRAM_BOT_TOKEN="123456:abc..."
-    export TELEGRAM_ALLOWED_USER_IDS="11111111"   # optional; empty = allow all
-    PYTHONPATH=src python -m polyglot_pigeon.bot.mock_bot
+    PYTHONPATH=src python -m polyglot_pigeon.bot.mock_bot -c config.yaml
 
 Then open the bot and press START — everything after that is button-driven.
 """
 
+import argparse
 import asyncio
 import html
 import logging
-import os
 import random
 from enum import Enum
+from pathlib import Path
 
 from pydantic import Field
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -32,14 +32,17 @@ from telegram.ext import (
     ContextTypes,
 )
 
+from polyglot_pigeon.config import ConfigLoader, get_config
+from polyglot_pigeon.models.configurations import Language
 from polyglot_pigeon.models.models import MyBaseModel
 
 log = logging.getLogger(__name__)
 
 # Telegram hard limit for a single text message.
 TELEGRAM_MAX_CHARS = 4096
-# Telegram truncates inline-button labels; keep them comfortably short.
-BUTTON_LABEL_MAX = 48
+# Max inline-button label length (Telegram's limit); long labels wrap onto
+# multiple lines, which is fine for full news titles.
+BUTTON_LABEL_MAX = 64
 
 # Callback-data prefixes for the inline keyboard.
 CB_TOGGLE = "toggle:"
@@ -316,6 +319,17 @@ KNOWN_LANGUAGE = "en"
 DEFAULT_LEARNING_LANGUAGE = "de"
 FALLBACK_LANGUAGE = "en"
 
+# Map the config's Language enum to the 2-letter codes used by the catalog.
+_LANGUAGE_CODES: dict[Language, str] = {
+    Language.ENGLISH: "en",
+    Language.GERMAN: "de",
+    Language.RUSSIAN: "ru",
+    Language.ITALIAN: "it",
+    Language.SPANISH: "es",
+    Language.TURKISH: "tr",
+    Language.POLISH: "pl",
+}
+
 _TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
     "de": {
         MessageKey.MENU_HEADER: (
@@ -390,26 +404,6 @@ class MessageCatalog:
 
 
 # ── Access control ────────────────────────────────────────────────────────────
-
-
-def _allowed_user_ids() -> set[int]:
-    """Parse the whitelist from ``TELEGRAM_ALLOWED_USER_IDS`` (comma separated).
-
-    An empty/unset value means "allow everyone" — convenient for a prototype.
-    """
-    raw = os.environ.get("TELEGRAM_ALLOWED_USER_IDS", "").strip()
-    if not raw:
-        return set()
-    ids: set[int] = set()
-    for part in raw.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        try:
-            ids.add(int(part))
-        except ValueError:
-            log.warning("Ignoring non-integer user id in whitelist: %r", part)
-    return ids
 
 
 def _is_authorized(update: Update, allowed: set[int]) -> bool:
@@ -754,30 +748,58 @@ def build_application(
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="PolyglotPigeon Telegram bot prototype"
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=Path,
+        required=True,
+        help="Path to the configuration file",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable debug logging"
+    )
+    args = parser.parse_args()
+
+    ConfigLoader().load(config_path=str(args.config))
+    config = get_config()
+
+    level = (
+        logging.DEBUG
+        if args.verbose
+        else getattr(logging, config.logging.level.upper(), logging.INFO)
+    )
     logging.basicConfig(
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-    if not token:
+    if config.telegram is None:
         raise SystemExit(
-            "TELEGRAM_BOT_TOKEN is not set. Get a token from @BotFather and:\n"
-            "  export TELEGRAM_BOT_TOKEN='123456:abc...'"
+            "No 'telegram' section in the config. Add telegram.token and "
+            "telegram.whitelisted_users (see config.example.yaml)."
         )
+    if not config.telegram.token:
+        raise SystemExit("telegram.token is empty — set your @BotFather token.")
 
-    allowed = _allowed_user_ids()
-    if allowed:
-        log.info("Whitelist active for user ids: %s", sorted(allowed))
+    whitelist = set(config.telegram.whitelisted_users)
+    known_language = _LANGUAGE_CODES.get(config.language.known, KNOWN_LANGUAGE)
+
+    if whitelist:
+        log.info("Whitelist active for user ids: %s", sorted(whitelist))
     else:
         log.warning(
-            "No TELEGRAM_ALLOWED_USER_IDS set — the bot will respond to ANYONE. "
-            "Set it for a real whitelist."
+            "telegram.whitelisted_users is empty — the bot will respond to "
+            "ANYONE. Set it for a real whitelist."
         )
 
-    app = build_application(token, allowed)
-    log.info("Starting mock bot (long polling). Press Ctrl+C to stop.")
+    app = build_application(
+        config.telegram.token, whitelist, known_language=known_language
+    )
+    log.info("Starting Telegram bot prototype (long polling). Ctrl+C to stop.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

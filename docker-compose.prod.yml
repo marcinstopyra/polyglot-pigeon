@@ -7,3 +7,13 @@ services:
       - ./logs:/app/logs
       # Optional: mount a prompt overrides file (path set via pipeline.prompts_path in config.yaml).
       # - ./prompts.yaml:/app/prompts.yaml:ro
+
+  # Interactive Telegram bot prototype — same image, different entrypoint.
+  # Needs a `telegram:` section in config.yaml (token + whitelisted_users).
+  polyglot-pigeon-bot:
+    image: ghcr.io/marcinstopyra/polyglot-pigeon:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: ["python", "src/polyglot_pigeon/bot/mock_bot.py", "-c", "/app/config.yaml"]
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./logs:/app/logs
