@@ -68,6 +68,15 @@ class TargetEmailConfig(MyBaseModel):
     )
 
 
+class TelegramConfig(MyBaseModel):
+    token: str
+    whitelisted_users: list[int] = Field(
+        default_factory=list,
+        description="Telegram numeric user IDs allowed to use the bot; "
+        "empty means anyone (not recommended)",
+    )
+
+
 class ScheduleConfig(MyBaseModel):
     time: str = "12:00"
     timezone: str = "UTC"
@@ -95,3 +104,4 @@ class Config(MyBaseModel):
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
+    telegram: TelegramConfig | None = None  # required only for the bot prototype
