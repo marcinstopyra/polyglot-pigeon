@@ -298,14 +298,14 @@ LEARNING_OPTIONS_BY_CODE: dict[str, LearningOption] = {
 class MessageKey(Enum):
     """Stable keys for the bot's UI strings (never shown to the user)."""
 
-    MENU_HEADER = "menu_header"
+    MENU_MESSAGE = "menu_message"
     BTN_SETTINGS = "btn_settings"
     NOT_IMPLEMENTED = "not_implemented"
     NEWS_LIST_HEADER = "news_list_header"
     BTN_SHOW_NEWS = "btn_show_news"
     BTN_DONE = "btn_done"
     BTN_CLEAR = "btn_clear"
-    BTN_BACK = "btn_back"
+    BTN_MENU = "btn_menu"
     PREPARING = "preparing"
     DONE = "done"
     SELECT_AT_LEAST_ONE = "select_at_least_one"
@@ -332,7 +332,7 @@ _LANGUAGE_CODES: dict[Language, str] = {
 
 _TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
     "de": {
-        MessageKey.MENU_HEADER: (
+        MessageKey.MENU_MESSAGE: (
             "🕊️ <b>PolyglotPigeon</b> (Prototyp)\n\n"
             "Was möchtest du üben? Wähle eine Sprache oder öffne die "
             "Einstellungen.\n\n"
@@ -348,7 +348,7 @@ _TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
         MessageKey.BTN_SHOW_NEWS: "📰 Nachrichten anzeigen",
         MessageKey.BTN_DONE: "✔️ Fertig",
         MessageKey.BTN_CLEAR: "✖️ Leeren",
-        MessageKey.BTN_BACK: "⬅️ Zurück",
+        MessageKey.BTN_MENU: "☰ Menü",
         MessageKey.PREPARING: "✍️ Ich bereite {count} Lesetext(e) vor …",
         MessageKey.DONE: "✅ Fertig.",
         MessageKey.SELECT_AT_LEAST_ONE: (
@@ -358,7 +358,7 @@ _TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
         MessageKey.CLEARED: "Auswahl geleert.",
     },
     "en": {
-        MessageKey.MENU_HEADER: (
+        MessageKey.MENU_MESSAGE: (
             "🕊️ <b>PolyglotPigeon</b> (prototype)\n\n"
             "What would you like to practise? Pick a language below, or open "
             "settings.\n\n"
@@ -372,7 +372,7 @@ _TRANSLATIONS: dict[str, dict[MessageKey, str]] = {
         MessageKey.BTN_SHOW_NEWS: "📰 Show news",
         MessageKey.BTN_DONE: "✔️ Done",
         MessageKey.BTN_CLEAR: "✖️ Clear",
-        MessageKey.BTN_BACK: "⬅️ Back",
+        MessageKey.BTN_MENU: "☰ Menu",
         MessageKey.PREPARING: "✍️ Preparing {count} reading(s) …",
         MessageKey.DONE: "✅ Done.",
         MessageKey.SELECT_AT_LEAST_ONE: "Select at least one article first.",
@@ -456,19 +456,15 @@ def _menu_markup(known: "MessageCatalog") -> InlineKeyboardMarkup:
 
 
 def _post_delivery_markup(messages: "MessageCatalog") -> InlineKeyboardMarkup:
-    """Actions offered after a delivery: pick more news, or go back to the menu."""
+    """Action offered after a delivery: pick more news. The menu is reachable
+    from the news list's ☰ Menu button, so no separate back button here."""
     return InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton(
                     messages.get(MessageKey.BTN_SHOW_NEWS), callback_data=CB_NEWS
                 )
-            ],
-            [
-                InlineKeyboardButton(
-                    messages.get(MessageKey.BTN_BACK), callback_data=CB_MENU
-                )
-            ],
+            ]
         ]
     )
 
@@ -497,7 +493,7 @@ def _build_keyboard(
         )
     rows.append(action_row)
     rows.append(
-        [InlineKeyboardButton(messages.get(MessageKey.BTN_BACK), callback_data=CB_MENU)]
+        [InlineKeyboardButton(messages.get(MessageKey.BTN_MENU), callback_data=CB_MENU)]
     )
     return InlineKeyboardMarkup(rows)
 
@@ -596,7 +592,7 @@ async def _send_menu(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     known = _known_messages(context)
     await context.bot.send_message(
         chat_id=chat_id,
-        text=known.get(MessageKey.MENU_HEADER),
+        text=known.get(MessageKey.MENU_MESSAGE),
         parse_mode="HTML",
         reply_markup=_menu_markup(known),
     )
