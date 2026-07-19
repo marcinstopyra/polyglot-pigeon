@@ -455,15 +455,20 @@ def _menu_markup(known: "MessageCatalog") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def _show_news_markup(messages: "MessageCatalog") -> InlineKeyboardMarkup:
-    """A single button that opens the news list (used instead of typing /news)."""
+def _post_delivery_markup(messages: "MessageCatalog") -> InlineKeyboardMarkup:
+    """Actions offered after a delivery: pick more news, or go back to the menu."""
     return InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton(
                     messages.get(MessageKey.BTN_SHOW_NEWS), callback_data=CB_NEWS
                 )
-            ]
+            ],
+            [
+                InlineKeyboardButton(
+                    messages.get(MessageKey.BTN_BACK), callback_data=CB_MENU
+                )
+            ],
         ]
     )
 
@@ -725,7 +730,7 @@ async def _deliver(
     await context.bot.send_message(
         chat_id=chat_id,
         text=messages.get(MessageKey.DONE),
-        reply_markup=_show_news_markup(messages),
+        reply_markup=_post_delivery_markup(messages),
     )
 
 
