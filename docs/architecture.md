@@ -83,9 +83,12 @@ shims, no way to accidentally block the event loop.
 > extraction simply backs up. Nothing is lost.
 
 ### `courier`
-Wakes on its own schedule, reads due subscriptions and their already-rendered
-articles, assembles and sends newsletters over SMTP, then records the delivery.
-Delegates topic selection to the LLM by enqueuing a `curate` job.
+Ticks on a fixed interval and works from `subscriptions.next_run_at`. Each tick
+makes two passes: a **prepare** pass that enqueues a `curate` job for every
+subscription due within `lead_time`, and a **send** pass that assembles the
+already-rendered articles for subscriptions due now, sends over SMTP, and
+records the delivery. It never calls the LLM and never calls the controller's
+API — it enqueues straight to the `jobs` table.
 
 ### `bot`
 Telegram interface. Reads stored content directly for anything already
@@ -140,34 +143,50 @@ enqueue straight to the `jobs` table.
 
 ```
 polyglot-pigeon/
-├── packages/
-│   ├── shared/              # used by all services
-│   │   ├── models/          # Pydantic models: User, Subscription, Topic…
-│   │   ├── config/          # env-based settings (replaces YAML singleton)
-│   │   └── db/              # engine, session, repositories/  ← the seam
-│   └── content/             # LLM-facing domain logic — ONLY controller uses it
-│       ├── prompts/
-│       ├── llm/             # async-capable clients
-│       ├── extractor.py     # topic extraction + merge
-│       ├── translator.py    # topic title translation
-│       └── composer.py      # article rendering (generation half of pipeline.py)
-├── services/
-│   ├── ingest/              # + cleaner.py, chunker.py (no LLM deps)
-│   ├── controller/
-│   ├── courier/
-│   └── bot/
-├── migrations/              # single Alembic tree
+├── src/polyglot_pigeon/         # one import root (see below)
+│   ├── shared/                  # used by all services
+│   │   ├── models/              # Pydantic models: User, Subscription, Topic…
+│   │   ├── config/              # env-based settings (replaces YAML singleton)
+│   │   └── db/                  # engine, session, repositories/  ← the seam
+│   ├── content/                 # LLM-facing domain logic — ONLY controller uses it
+│   │   ├── prompts/
+│   │   ├── llm/                 # async-capable clients
+│   │   ├── extractor.py         # topic extraction + merge
+│   │   ├── translator.py        # topic title translation
+│   │   └── composer.py          # article rendering (generation half of pipeline.py)
+│   └── services/
+│       ├── ingest/              # + cleaner.py, chunker.py (no LLM deps)
+│       ├── controller/
+│       ├── courier/
+│       └── bot/
+├── migrations/                  # single Alembic tree
+├── tests/                       # mirrors src/polyglot_pigeon/
+├── pyproject.toml               # one distribution for the whole repo
 └── docker-compose.yml
 ```
 
+**Everything lives under a single `polyglot_pigeon` import root.** With one
+distribution (§10), the alternative — `packages/` and `services/` as top-level
+directories — would make `shared`, `content`, `ingest` and `bot` top-level
+*import names*, four of which are plausible names on PyPI and any of which a
+future transitive dependency could shadow silently. The shared/service
+distinction is therefore expressed as a module path, not a directory tier. It
+costs nothing: the dependency rule below is unchanged, and it reads more
+precisely as `polyglot_pigeon.services.*` than as a folder name.
+
+**Services are started as modules** — `python -m polyglot_pigeon.services.courier`,
+with a `__main__.py` per service — not through `[project.scripts]` console
+entry points. Nothing to keep in sync, and the container `CMD` names the
+service it runs.
+
 ```mermaid
 graph BT
-    SHARED[packages/shared]
-    CONTENT[packages/content]
-    ING[services/ingest]
-    CTL[services/controller]
-    COU[services/courier]
-    BOT[services/bot]
+    SHARED["polyglot_pigeon.shared"]
+    CONTENT["polyglot_pigeon.content"]
+    ING["services.ingest"]
+    CTL["services.controller"]
+    COU["services.courier"]
+    BOT["services.bot"]
 
     CONTENT --> SHARED
     ING --> SHARED
@@ -177,18 +196,32 @@ graph BT
     BOT --> SHARED
 ```
 
-**Rule: services may import packages; services may never import each other.**
-Enforce with `import-linter` or ruff's banned-api, or it will be violated
-within a month.
+**Rule: services may import `shared` and `content`; services may never import
+each other.** Enforce with `import-linter` — under a single distribution (§10)
+it is the *only* enforcement, so it is not optional tooling:
 
-Only `controller` depends on `packages/content`, so `ingest`, `courier` and
-`bot` never install `anthropic` or `openai`. Cleaning and chunking are pure
-text manipulation and live in `ingest` directly.
+```toml
+[[tool.importlinter.contracts]]
+name = "services may not import each other"
+type = "independence"
+modules = [
+  "polyglot_pigeon.services.ingest",
+  "polyglot_pigeon.services.controller",
+  "polyglot_pigeon.services.courier",
+  "polyglot_pigeon.services.bot",
+]
+```
+
+Only `controller` imports `polyglot_pigeon.content`, so `ingest`, `courier` and
+`bot` need no `anthropic` or `openai` — enforced statically everywhere, and
+additionally at install time wherever a service is installed through its own
+extra (§10). Cleaning and chunking are pure text manipulation and live in
+`ingest` directly.
 
 ### Required refactors
 
 - **`pipeline.py` splits three ways.** `_extract_topics` and
-  `_transform_articles` → `packages/content` (controller); `send_target_email`
+  `_transform_articles` → `polyglot_pigeon/content` (controller); `send_target_email`
   → `courier`; chunking/cleaning → `ingest`.
 - **`ConfigLoader` singleton goes away.** Per-user settings move to database
   rows; process settings move to env-based config.
@@ -215,10 +248,10 @@ text manipulation and live in `ingest` directly.
 | `languages` | migrations only (seeded reference data) | all |
 | `newsletters`, `newsletter_items` | `controller` | courier, bot |
 | `deliveries` | `courier` | — |
-| `users`, `subscriptions`, `user_newsletter_sources`, `bot_sessions` | `bot` | ingest, controller, courier |
+| `users`, `user_languages`, `subscriptions`, `user_newsletter_sources`, `bot_sessions` | `bot` | ingest, controller, courier |
 | `jobs` | `controller` (on its own behalf, or for `bot` via HTTP); `courier` enqueues directly | — |
 
-All access goes through repositories in `packages/shared/db`. No service writes
+All access goes through repositories in `polyglot_pigeon/shared/db`. No service writes
 raw SQL against another's tables.
 
 ### Why repositories
@@ -289,15 +322,16 @@ erDiagram
     NEWS_TOPICS ||--o{ TEXTS : "has"
     NEWS_TOPICS ||--o{ ARTICLE_RENDITIONS : "rendered as"
     NEWS_TOPICS }o--o| NEWS_TOPICS : "merged into"
-    USERS ||--o{ SUBSCRIPTIONS : has
-    USERS ||--o{ NEWSLETTERS : receives
+    USERS ||--o{ USER_LANGUAGES : learns
+    USER_LANGUAGES ||--o{ SUBSCRIPTIONS : "delivered via"
+    SUBSCRIPTIONS ||--o{ NEWSLETTERS : produces
     NEWSLETTERS ||--o{ NEWSLETTER_ITEMS : contains
     ARTICLE_RENDITIONS ||--o{ NEWSLETTER_ITEMS : "included as"
     NEWSLETTERS ||--o{ DELIVERIES : "sent as"
     LANGUAGES ||--o{ ARTICLE_RENDITIONS : "target of"
     ARTICLE_RENDITIONS ||--o{ GLOSSARIES : "glossed in"
     LANGUAGES ||--o{ GLOSSARIES : "known side"
-    LANGUAGES ||--o{ SUBSCRIPTIONS : "target of"
+    LANGUAGES ||--o{ USER_LANGUAGES : "target of"
     LANGUAGES ||--o{ USERS : "known by"
     TEXTS ||--o{ TRANSLATIONS : "translated as"
     LANGUAGES ||--o{ TRANSLATIONS : "target of"
@@ -383,18 +417,26 @@ erDiagram
         int telegram_id
         string email
         string known_language_code FK
+        string timezone "IANA, e.g. Europe/Warsaw"
+    }
+    USER_LANGUAGES {
+        int user_id PK-FK
+        string language_code PK-FK
+        enum level "A1..C2"
     }
     SUBSCRIPTIONS {
         int id PK
         int user_id FK
+        string language_code FK
         enum channel "EMAIL, TELEGRAM"
-        string target_language_code FK
-        enum level "A1..C2"
-        string schedule
+        set days_of_week "MON..SUN, NULL = on-demand"
+        time send_time "local wall time"
+        datetime next_run_at "UTC, materialized"
     }
     NEWSLETTERS {
         int id PK
-        int user_id FK
+        int subscription_id FK
+        datetime scheduled_for "UTC"
         datetime created_at
     }
     NEWSLETTER_ITEMS {
@@ -412,10 +454,13 @@ erDiagram
 Unique constraints: `translations(text_id, language_code)`,
 `article_renditions(topic_id, language_code, level)`, and
 `glossaries(rendition_id, known_language_code)`. These are what make the cache
-a cache. Also `newsletter_sources(identifier)` (one row per distinct newsletter),
-plus composite primary keys on the junctions
-`news_topic_sources(news_topic_id, newsletter_source_id)` and
-`user_newsletter_sources(user_id, newsletter_source_id)`.
+a cache. Also `newsletter_sources(identifier)` (one row per distinct newsletter)
+and `newsletters(subscription_id, scheduled_for)` — the latter is what makes a
+delivery retry idempotent rather than duplicating a newsletter (§7). Plus
+composite primary keys on the junctions
+`news_topic_sources(news_topic_id, newsletter_source_id)`,
+`user_newsletter_sources(user_id, newsletter_source_id)` and
+`user_languages(user_id, language_code)`.
 
 ### Newsletter sources: provenance and per-user visibility
 
@@ -617,6 +662,7 @@ The distinction is whether the set can grow **without a code change**:
 | `language` | **table** | Extensible. Adding Portuguese is a data change — the pipeline is already language-agnostic. Also carries metadata (`name_en`, `name_native` for the bot's language picker). |
 | `level` | **enum** | CEFR is a fixed external standard. Six values, A1–C2, ordered. It will not grow. |
 | `channel` | **enum** | Adding a channel means writing a delivery implementation, so it can never be data-only. |
+| `days_of_week` | **MySQL `SET`** | Seven values, fixed forever — the same argument as `level`, applied to a set rather than a single value. Native `SET` stores it in one byte but reads and queries as labels (`MON,TUE,WED,THU,FRI`), so the schedule stays legible and stays on one row. |
 
 `language_code` uses the ISO 639-1 code as a natural primary key rather than a
 surrogate int: the set is small and stable, and it keeps `es` / `pl` legible in
@@ -688,9 +734,9 @@ owns all LLM calls" means in practice. Services differ only in what they
 | `extract` | `ingest` | one per source email, right after its chunks are written | chunks → candidate topics, each linked to the chunks it covers | Per-email scope bounds LLM context and isolates failures: one malformed newsletter cannot poison the batch |
 | `merge` | `ingest` | once, after a fetch run's `extract` jobs are all enqueued | candidate topics → deduplicated topics + English title | The same story covered by two newsletters must become **one** topic, or users see duplicates. Sees titles only, so it stays small |
 | `translate` | `controller` (after `merge`); migrations for new static keys | one per active language | topic titles and static UI strings → target language | The bot must show a topic list instantly. Cost scales with distinct languages, not users |
-| `render` | `courier` (ahead of a delivery window); `bot` via `POST /renditions` | one per `(topic, language, level)` cache miss | article text at CEFR level | **The expensive one.** Shared across all users at that key — this is what keeps LLM cost off the user count |
+| `render` | `controller` (after `curate`); `bot` via `POST /renditions` | one per `(topic, language, level)` cache miss **among curated topics** | article text at CEFR level | **The expensive one.** Shared across all users at that key — this is what keeps LLM cost off the user count |
 | `gloss` | same as `render` | one per `(rendition, known_language)` cache miss | glossary from the rendition's article text | Glossaries depend on the reader's native language, so they cannot live in the shared rendition |
-| `curate` | `courier` (per due subscription); `bot` if the user delegates | one per user per delivery | picks which topics that user gets | The only genuinely per-user LLM call. Runs over titles and summaries only, never full article text |
+| `curate` | `courier` (per due subscription); `bot` if the user delegates | one per due subscription, at `T − lead_time` before its send | picks which topics that user gets | The only genuinely per-user LLM call. Runs over titles and summaries only, never full article text — which is why it can run *before* `render` |
 
 **Priority.** `render` and `gloss` enqueued by the `bot` carry high priority —
 a user is waiting. Everything else is batch. This is the whole point of routing
@@ -702,18 +748,34 @@ graph LR
     A[ingest writes<br/>raw_news_chunks] --> B[extract<br/>per email]
     B --> C[merge<br/>per batch]
     C --> D[translate<br/>per active language]
-    C --> E[render<br/>per topic+lang+level]
+    D --> F[curate<br/>per subscription]
+    F --> E[render<br/>selected topics only]
     E --> H[gloss<br/>per known language]
-    D --> F[curate<br/>per user]
-    H --> F
-    F --> G[newsletter assembled]
+    H --> G[newsletter assembled]
 ```
 
-> **Open mechanism: the `merge` fan-in.** `merge` must run only once every
-> `extract` in its batch has finished — a fan-in the job table does not express
-> on its own. Either `merge` runs on a timer safely after the ingest window, or
-> the batch needs a row counting outstanding `extract` jobs. Left unresolved;
-> see question 7.
+**`curate` runs before `render`, not after.** Curation reads titles and
+summaries only, so it has no dependency on rendered prose — and putting it first
+means the expensive `render` job only ever runs for topics a reader actually
+receives. Rendering the whole batch up front would write an article for every
+topic × active `(language, level)` pair and then discard most of them, which is
+the same waste §10 rejects for eager glossaries.
+
+> **The `merge` fan-in.** `merge` must run only once every `extract` in its
+> batch has finished — a fan-in the job table does not express on its own.
+> Resolved without extra state: **`ingest` enqueues `merge` last**, after every
+> `extract` row for that run is committed, so by the time any worker can claim
+> `merge` the complete set of extracts already exists. `merge` then counts its
+> batch's unfinished extracts when claimed and, if any remain, returns itself to
+> `pending` with `not_before = now + 2 min` rather than sleeping and holding a
+> worker slot — a sleeping worker is indistinguishable from a dead one to
+> stale-lock recovery. Rechecks must **not** increment `attempts`; a slow batch
+> is not a failing job. After a ~30 minute ceiling `merge` proceeds on whatever
+> finished and logs what it left out, so a wedged `extract` delays the batch
+> instead of hanging it forever.
+>
+> Failed extracts are terminal and therefore count as finished, so one
+> permanently broken newsletter cannot block a batch.
 
 ### Scheduled delivery
 
@@ -728,11 +790,14 @@ sequenceDiagram
     ING->>ING: IMAP fetch, clean, chunk
     ING->>DB: write raw_news_chunks
     CTL->>DB: claim unassigned chunks
-    CTL->>CTL: extract, merge, translate, render
-    CTL->>DB: topics + translations + renditions
-    COU->>DB: read due subscriptions
+    CTL->>CTL: extract, merge, translate
+    CTL->>DB: topics + translations
+    Note over COU: prepare pass, T − lead_time
+    COU->>DB: read subscriptions due soon
     COU->>DB: enqueue curate job
-    CTL->>DB: write newsletter + items
+    CTL->>CTL: curate, then render + gloss selected only
+    CTL->>DB: newsletter + items + renditions
+    Note over COU: send pass, T
     COU->>User: SMTP send
     COU->>DB: write delivery record
 ```
@@ -811,9 +876,13 @@ migration.
 - **Explicit string lengths** — `String(255)`, never bare `String`.
 - **`utf8mb4`** charset. Matters for a language-learning product: without it,
   emoji and some accented characters are lost.
-- **All datetimes stored as UTC**, explicitly.
-- **Alembic `batch_alter_table`** for migrations (harmless on MySQL, keeps the
-  door open for other backends).
+- **All datetimes stored as UTC**, explicitly — as `DATETIME(6)` behind a shared
+  `UtcDateTime` type, never `TIMESTAMP` (§10). Timestamps are set by the
+  application, never by a server default, so the type is always on the path.
+- **Alembic `batch_alter_table`** for migrations — kept for migration
+  ergonomics, not portability. The schema deliberately uses MySQL-specific
+  features (`SET`, `ENUM`, `SKIP LOCKED`); there is no other-backend exit and
+  none is planned.
 - **Migrations run from exactly one place** — `controller` on startup, with the
   other services waiting on it in compose. Four services racing Alembic is a
   real outage.
@@ -866,28 +935,110 @@ migration.
 - **Data flows through the database; control signals may use HTTP** (§3).
   Concretely: HTTP enqueues and observes jobs, the job table executes them. The
   `bot` → `controller` call is the only inter-service HTTP path.
+- **Per-user language settings live in `user_languages`**, keyed
+  `(user_id, language_code)` with `level` as an attribute — *not* columns on
+  `subscriptions` (§6). Two things decided it. The bot's interactive path needs
+  a `(language, level)` for a request that is not a delivery at all, and under
+  the columns-on-subscriptions model it would have to pick one arbitrarily.
+  And level progression — B1 → B2, the central event in a language-learning
+  product — must be a single UPDATE rather than one per subscription, or a
+  missed row silently mixes levels. The composite PK makes "one level per user
+  per language" structural. *Rejected:* a generic `language_profile` table with
+  a surrogate key, which permits the same pair twice.
+- **Scheduling is structured per-subscription fields, evaluated from a
+  materialized `next_run_at`** (§6). `days_of_week` (`SET`) + `send_time`
+  (local wall time) + `users.timezone`; `next_run_at` is stored UTC, indexed,
+  claimed with `FOR UPDATE SKIP LOCKED` and advanced inside the claiming
+  transaction. `next_run_at IS NULL` means on-demand only — how a Telegram
+  subscription with no scheduled push is expressed. *Rejected:* cron
+  expressions. Users cannot write them, so the bot must offer a picker anyway;
+  they can express pathological schedules that then need validating away; and
+  they cannot be rendered back to the user through the `texts`/`translations`
+  machinery. The chosen shape also **cannot express more than one delivery per
+  day**, which structurally caps the one cost axis that scales linearly with
+  users (`curate`). Misfire policy: a 2-hour grace window, then skip and
+  advance — never catch up more than one delivery. DST: nonexistent local times
+  shift to the end of the gap, ambiguous ones take the first occurrence
+  (`fold=0`).
+- **`curate` runs before `render`** (§7). Curation reads titles and summaries
+  only, so it has no dependency on rendered prose; running it first means the
+  expensive `render` job only ever runs for topics a reader actually receives.
+  *Rejected:* pre-rendering every topic across every active
+  `(language, level)` pair after ingest, which writes an article for each and
+  then discards most — the same waste already rejected for eager glossaries.
+  *Cost:* generation moves closer to the send, absorbed by `lead_time`; and the
+  bot sees more cache misses when browsing.
+- **`merge` waits by asking, not by timer or counter** (§7). `ingest` enqueues
+  `merge` last, so the full extract set exists before `merge` is claimable;
+  `merge` then counts unfinished extracts and requeues itself until none
+  remain. *Rejected:* a fixed timer, which fails silently when the controller
+  was down and extraction starts late — precisely the case §2 promises is
+  harmless; and an outstanding-job counter, which races on concurrent
+  decrements and hangs forever when an extract crashes without decrementing.
+  Nothing is kept in sync; the check counts reality each time.
+- **UTC is stored as `DATETIME(6)` behind a `UtcDateTime` type decorator**, not
+  `TIMESTAMP` (§8). Nothing in this design asks the database to do time
+  arithmetic: `send_time` + `users.timezone` → `next_run_at` is computed in
+  Python with `zoneinfo`, because that is the only place DST gaps and folds can
+  be handled correctly. The column's only job is to return the exact instant
+  that was written. The decorator rejects naive datetimes on bind and re-attaches
+  `timezone.utc` on load, which matters specifically because **SQLAlchemy's
+  `DateTime(timezone=True)` is a silent no-op on MySQL** — it emits plain
+  `DATETIME` and the driver returns naive values, so convention alone has nothing
+  enforcing it. *Rejected:* `TIMESTAMP`, which is still 32-bit in MySQL 8 (the
+  2038 ceiling), makes read/write correctness depend on every connection's
+  `time_zone` rather than on the schema, and carries the legacy auto-init /
+  auto-update behaviour that a server variable can switch back on. Also
+  *rejected:* `BIGINT` epoch, which is unambiguous but costs the legibility of
+  reading the job queue by hand — the design's main debugging surface.
+  Microsecond precision is explicit: at the MySQL default of whole seconds,
+  §6's "oldest by `created_at`" source resolution ties routinely and resolves
+  arbitrarily.
+- **One `pyproject.toml` for the whole monorepo — a single distribution** (§4).
+  Not one `pyproject.toml` per package with Poetry path dependencies. The
+  trade is deliberate: fewer files and one dependency resolution, in exchange
+  for **`import-linter` becoming the sole enforcement of the dependency graph**
+  above, with no packaging-level barrier behind it. Per-service dependency
+  isolation is preserved through `[project.optional-dependencies]` extras — one
+  per service, with `anthropic`/`openai` in `controller`'s — so a service image
+  can still install only what it needs. Note that PEP 735 `[dependency-groups]`,
+  which this repo already uses for dev tooling, cannot serve that purpose: those
+  groups are a development mechanism and are not published in distribution
+  metadata. *Consequence to state plainly wherever §4's "never install
+  `anthropic` or `openai`" is read:* that now describes an extras-scoped install,
+  not a developer machine. The guarantee that holds everywhere is the static one.
+- **A single `polyglot_pigeon` import root; services start as modules** (§4).
+  `packages/` and `services/` are module paths under one root, not top-level
+  directories. *Rejected:* the literal two-tier tree, which under one
+  distribution would publish `shared`, `content`, `ingest` and `bot` as
+  top-level import names — all plausible PyPI names, any of which a transitive
+  dependency could shadow silently, failing as a confusing `AttributeError`
+  rather than a name clash. Also *rejected:* `pp_`-prefixed directories, which
+  fix the collision but put a prefix in every import line and desynchronise
+  directory names from the service names used in compose, logs and §2/§5.
+  Entry points are `python -m polyglot_pigeon.services.<name>` rather than
+  `[project.scripts]` — four fewer declarations to keep in sync, and no
+  ambiguity about whether an installed or a working-tree copy is running.
 
 ## 11. Open questions
 
-1. **Where do per-user language settings live** — columns on `subscriptions`
-   (as sketched), or a separate reusable `language_profile` table? Matters if
-   one user wants several language/level pairs.
-2. **Who owns scheduling?** Per-user cron expressions in `subscriptions`, or a
-   fixed set of delivery slots?
-3. **Cross-batch topic merge policy** — accept duplicates, match on embedding
-   similarity, or a periodic LLM merge pass over recent topics?
-4. **Retention.** How long are `source_emails`, `raw_news_chunks`, and
+1. **Cross-batch topic merge policy** — accept duplicates, match on embedding
+   similarity, or a periodic LLM merge pass over recent topics? Merging within
+   a batch only is **accepted for now**, so this is a question of when the
+   duplication becomes annoying rather than whether the design allows it. Note
+   the interaction with ingest frequency: with two fetch runs a day, a story
+   covered by a newsletter arriving before the first run and another arriving
+   before the second becomes two topics, so duplicates will be regular rather
+   than rare. One cheap mitigation if that bites: scope `merge` to the day's
+   unmerged candidates rather than to a single batch, which also makes a
+   mistimed merge self-correcting. Cheap specifically because `curate` now runs
+   before `render` (§10) — at merge time nothing has been rendered yet, so
+   there are no renditions, glossaries or newsletter items to re-point.
+2. **Retention.** How long are `source_emails`, `raw_news_chunks`, and
    `article_renditions` rows kept? Renditions are the reusable asset and
    probably outlive the raw chunks by a lot.
-5. **Migration path from today's single-tenant deployment** — is the existing
+3. **Migration path from today's single-tenant deployment** — is the existing
    `config.yaml` user seeded into the database, or is this a clean start?
-6. **Rendering trigger for email users.** Does `courier` render on demand at
-   send time (slow, risks missing the delivery window), or does a batch job
-   pre-render for all active `(language, level)` pairs ahead of schedule?
-7. **How does `merge` know its batch is complete?** It must run after every
-   `extract` job for that fetch run, which is a fan-in the job table cannot
-   express by itself. A timer set safely past the ingest window is the simple
-   answer; a batch row with an outstanding-job counter is the correct one.
 
 ### Deliberately deferred
 
@@ -933,5 +1084,7 @@ wherever one exists.
 - Whether injections compose additively (base + grammar + style, all applied)
   or the most specific one wins outright.
 - Where a user's injection choices live — a new preference table, or columns
-  on `subscriptions` (ties into the open question in §11.1 about where
-  per-user language settings live).
+  on `subscriptions` / `user_languages`. Note §10 settled the neighbouring
+  question: the language pair belongs to `user_languages`, not to a
+  subscription. A style injection is arguably per-delivery rather than per
+  language pair, so it may not follow the same placement.
