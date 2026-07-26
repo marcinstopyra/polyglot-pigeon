@@ -713,18 +713,7 @@ graph LR
 > `extract` in its batch has finished — a fan-in the job table does not express
 > on its own. Either `merge` runs on a timer safely after the ingest window, or
 > the batch needs a row counting outstanding `extract` jobs. Left unresolved;
-> see question 8.
-
-```mermaid
-graph LR
-    A[ingest writes<br/>raw_news_chunks] --> B[extract<br/>per email]
-    B --> C[merge<br/>per batch]
-    C --> D[translate<br/>per active language]
-    C --> E[render<br/>per topic+lang+level]
-    D --> F[curate<br/>per user]
-    E --> F
-    F --> G[newsletter assembled]
-```
+> see question 7.
 
 ### Scheduled delivery
 
@@ -908,3 +897,41 @@ certain users, or vice versa. This would add a filter between
 change the sharing model for `article_renditions` as long as the *rendering* of
 a topic stays user-independent; only *visibility* becomes user-scoped. Noted so
 the eventual filter has an obvious place to live.
+
+---
+
+## 12. Roadmap
+
+Items below are known future needs — captured so they aren't forgotten, not
+designed in detail. Nothing here should be implemented before it gets its own
+planning pass.
+
+### Custom prompts and prompt injections (`llm_prompts`)
+
+Two categories of prompt content, both keyed:
+
+| Kind | Example | Scope |
+|---|---|---|
+| Base/task prompt | one per job type from §7 (`extract`, `merge`, `translate`, `render`, `gloss`, `curate`) | what the model is asked to do |
+| Injection | grammar constraint ("avoid subjunctive in Spanish"); style/character ("sarcastic", "gossip-column narrative", "black humor") | layered on top of a base prompt |
+
+Both need to be overridable per **model** (switching from Deepseek to Anthropic
+can need different phrasing for the same job) and per **user** (one user wants
+a gossip-column newsletter, another wants sarcastic black humor).
+
+At composition time, a job would resolve something like: *base prompt for this
+job type* + *applicable grammar injection(s) for the target language* + *user's
+chosen style injection*, substituting a model-specific variant of any of those
+wherever one exists.
+
+**Not yet decided — flagged here so it isn't lost:**
+- Table shape: one `llm_prompts` table with a type discriminator (base vs.
+  injection), or `llm_prompts` plus a separate join table recording which
+  injection(s) a user has selected?
+- Precedence when both a model-specific and a user-specific override exist for
+  the same key.
+- Whether injections compose additively (base + grammar + style, all applied)
+  or the most specific one wins outright.
+- Where a user's injection choices live — a new preference table, or columns
+  on `subscriptions` (ties into the open question in §11.1 about where
+  per-user language settings live).
