@@ -146,6 +146,20 @@ The `config.yaml` file is gitignored. See `config.example.yaml` for all availabl
 `level` accepts CEFR levels: `a1`, `a2`, `b1`, `b2`, `c1`, `c2`
 
 
+## Database (for developers)
+
+The project uses MySQL 8, SQLAlchemy and Alembic. There are no application
+tables yet — this is infrastructure for upcoming tickets.
+
+```bash
+make db-up    # starts a MySQL 8 container (docker compose up -d db)
+make migrate  # applies migrations (alembic upgrade head)
+```
+
+Connection settings are read from environment variables (all optional,
+defaulting to match `docker-compose.yml`): `DB_HOST`, `DB_PORT`, `DB_USER`,
+`DB_PASSWORD`, `DB_NAME`, `DB_CHARSET`.
+
 ## Running
 
 ### Single run (process now and exit)

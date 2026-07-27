@@ -7,3 +7,37 @@ services:
       - ./logs:/app/logs                    # persist logs on host
       # Optional: mount a prompt overrides file (path set via pipeline.prompts_path in config.yaml).
       # - ./prompts.yaml:/app/prompts.yaml:ro
+
+  db:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-polyglot}
+      MYSQL_USER: ${DB_USER:-polyglot}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-polyglot}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-polyglot}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - dbdata:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p${DB_ROOT_PASSWORD:-polyglot}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  dbdata:

@@ -1,4 +1,4 @@
-.PHONY: format lint release
+.PHONY: format lint release db-up migrate
 
 format:
 	poetry run ruff format .
@@ -7,6 +7,12 @@ format:
 lint:
 	poetry run ruff check .
 	poetry run ruff format --check .
+
+db-up:
+	docker compose up -d db
+
+migrate:
+	poetry run alembic upgrade head
 
 release:
 ifndef VERSION
