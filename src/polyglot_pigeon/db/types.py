@@ -13,12 +13,14 @@ class UtcDateTime(TypeDecorator):
     naive datetimes regardless. This decorator is what actually enforces
     an aware-UTC boundary — don't "simplify" it into `DateTime(timezone=True)`.
 
-    Storage is `DATETIME(6)`: MySQL's default is whole seconds *with
-    rounding*, and this project ties ordering decisions to microsecond
-    granularity.
+    Storage is second-precision `DATETIME`. Sub-second components are
+    truncated in Python rather than left to MySQL, which *rounds* them:
+    `09:30:00.6` would become `09:30:01`, a timestamp in the future.
+    Truncating always errs backwards, which is the safe direction for
+    "has this been processed yet" comparisons.
     """
 
-    impl = DATETIME(fsp=6)
+    impl = DATETIME()
     cache_ok = True
 
     def process_bind_param(
@@ -31,7 +33,7 @@ class UtcDateTime(TypeDecorator):
                 "UtcDateTime requires a timezone-aware datetime, got a naive "
                 f"value: {value!r}"
             )
-        return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0)
 
     def process_result_value(
         self, value: datetime | None, dialect: Dialect

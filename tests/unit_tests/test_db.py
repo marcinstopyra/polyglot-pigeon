@@ -71,8 +71,10 @@ def test_utc_roundtrip_is_aware_and_tz_independent(db_engine, sample_table, loca
     assert loaded == source.astimezone(timezone.utc)
 
 
-def test_microseconds_survive_roundtrip(db_engine, sample_table, local_tz):
-    source = datetime(2026, 3, 15, 9, 30, 0, 123456, tzinfo=timezone.utc)
+def test_subsecond_precision_is_truncated(db_engine, sample_table, local_tz):
+    # .999999 is the value that distinguishes truncation from MySQL's own
+    # rounding, which would push this forward to 09:30:01.
+    source = datetime(2026, 3, 15, 9, 30, 0, 999999, tzinfo=timezone.utc)
 
     with db_engine.begin() as conn:
         conn.execute(sample_table.insert(), {"text": "x", "created_at": source})
@@ -80,8 +82,8 @@ def test_microseconds_survive_roundtrip(db_engine, sample_table, local_tz):
     with db_engine.connect() as conn:
         loaded = conn.execute(select(sample_table.c.created_at)).scalar_one()
 
-    assert loaded.microsecond == 123456
-    assert loaded == source
+    assert loaded.microsecond == 0
+    assert loaded == source.replace(microsecond=0)
 
 
 def test_naive_datetime_raises(db_engine, sample_table, local_tz):
