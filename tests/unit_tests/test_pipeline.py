@@ -6,22 +6,22 @@ from uuid import uuid4
 import pytest
 
 from polyglot_pigeon.content.llm.models import LLMMessage, LLMResponse, MessageRole
-from polyglot_pigeon.shared.models.models import (
-    SourceArticleDescriptor,
-    TopicExtractionResponse,
-    CurationResponse,
-    EmailChunk,
-    SelectedArticle,
-    ChunkedSourceEmail,
-    TargetArticle,
-    TargetEmailContent,
-)
 from polyglot_pigeon.scheduler.pipeline import (
     EmailProcessingPipeline,
     _parse_json_with_retry,
     _render_html,
     _render_text,
     _strip_json_fences,
+)
+from polyglot_pigeon.shared.models.models import (
+    ChunkedSourceEmail,
+    CurationResponse,
+    EmailChunk,
+    SelectedArticle,
+    SourceArticleDescriptor,
+    TargetArticle,
+    TargetEmailContent,
+    TopicExtractionResponse,
 )
 
 # ── fixtures / helpers ────────────────────────────────────────────────────────
@@ -359,7 +359,8 @@ def _make_source(chunks: list[EmailChunk] | None = None) -> ChunkedSourceEmail:
         sender="Test Sender <test@example.com>",
         sender_name="Test Sender",
         email_subject="Weekly Digest",
-        email_contents=chunks or [EmailChunk(chunk_id=uuid4(), text="Some article content here.")],
+        email_contents=chunks
+        or [EmailChunk(chunk_id=uuid4(), text="Some article content here.")],
     )
 
 
@@ -487,7 +488,10 @@ class TestCurateArticles:
         prompts.get.return_value = "prompt"
 
         result = pipeline._curate_articles(
-            topics, max_articles=7, llm_client=llm_client, prompts=prompts,
+            topics,
+            max_articles=7,
+            llm_client=llm_client,
+            prompts=prompts,
         )
 
         assert result == selected
@@ -502,7 +506,10 @@ class TestCurateArticles:
         prompts.get.return_value = "prompt"
 
         result = pipeline._curate_articles(
-            topics, max_articles=7, llm_client=llm_client, prompts=prompts,
+            topics,
+            max_articles=7,
+            llm_client=llm_client,
+            prompts=prompts,
         )
 
         assert result == [topics[0].article_id]
@@ -517,7 +524,10 @@ class TestCurateArticles:
         prompts.get.return_value = "prompt"
 
         result = pipeline._curate_articles(
-            topics, max_articles=2, llm_client=llm_client, prompts=prompts,
+            topics,
+            max_articles=2,
+            llm_client=llm_client,
+            prompts=prompts,
         )
 
         assert len(result) == 2

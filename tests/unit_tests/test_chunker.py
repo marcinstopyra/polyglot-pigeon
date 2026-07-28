@@ -9,7 +9,7 @@ from polyglot_pigeon.services.ingest.chunker import (
     _extract_sender_name,
     chunk_email,
 )
-from polyglot_pigeon.shared.models.models import Email, ChunkedSourceEmail
+from polyglot_pigeon.shared.models.models import ChunkedSourceEmail, Email
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 

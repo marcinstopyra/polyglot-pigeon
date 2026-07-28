@@ -6,6 +6,11 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from polyglot_pigeon.scheduler import (
+    EmailScheduler,
+    PlaceholderPipeline,
+    ProcessingResult,
+)
 from polyglot_pigeon.shared.models.configurations import (
     Config,
     Language,
@@ -17,11 +22,6 @@ from polyglot_pigeon.shared.models.configurations import (
     TargetEmailConfig,
 )
 from polyglot_pigeon.shared.models.models import Email
-from polyglot_pigeon.scheduler import (
-    EmailScheduler,
-    PlaceholderPipeline,
-    ProcessingResult,
-)
 
 
 class TestProcessingResult:
@@ -154,7 +154,9 @@ class TestEmailScheduler:
         ]
 
     def test_init_with_config_and_pipeline(self, mock_config, mock_pipeline):
-        scheduler = EmailScheduler(config=mock_config, pipeline_factory=lambda: mock_pipeline)
+        scheduler = EmailScheduler(
+            config=mock_config, pipeline_factory=lambda: mock_pipeline
+        )
 
         assert scheduler.config == mock_config
         assert scheduler._pipeline_factory() is mock_pipeline
@@ -194,7 +196,9 @@ class TestEmailScheduler:
     def test_run_once_fetches_and_processes(
         self, mock_config, mock_pipeline, sample_emails
     ):
-        scheduler = EmailScheduler(config=mock_config, pipeline_factory=lambda: mock_pipeline)
+        scheduler = EmailScheduler(
+            config=mock_config, pipeline_factory=lambda: mock_pipeline
+        )
 
         with patch.object(
             scheduler, "_fetch_emails", return_value=sample_emails
@@ -209,7 +213,9 @@ class TestEmailScheduler:
 
     def test_run_once_no_emails(self, mock_config, mock_pipeline):
         mock_pipeline.process.return_value = ProcessingResult(0, 0, [])
-        scheduler = EmailScheduler(config=mock_config, pipeline_factory=lambda: mock_pipeline)
+        scheduler = EmailScheduler(
+            config=mock_config, pipeline_factory=lambda: mock_pipeline
+        )
 
         with patch.object(scheduler, "_fetch_emails", return_value=[]):
             with patch.object(scheduler, "_mark_emails_processed") as mock_mark:
@@ -222,7 +228,9 @@ class TestEmailScheduler:
         self, mock_config, mock_pipeline, sample_emails
     ):
         mock_config.source_email.mark_as_read = False
-        scheduler = EmailScheduler(config=mock_config, pipeline_factory=lambda: mock_pipeline)
+        scheduler = EmailScheduler(
+            config=mock_config, pipeline_factory=lambda: mock_pipeline
+        )
 
         with patch.object(scheduler, "_fetch_emails", return_value=sample_emails):
             with patch.object(scheduler, "_mark_emails_processed") as mock_mark:

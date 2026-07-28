@@ -7,6 +7,10 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.12"
+# Runtime requirements live in [tool.poetry.dependencies]. Without this,
+# poetry-core treats the static [project] table as authoritative and builds a
+# wheel whose metadata declares no runtime dependencies at all.
+dynamic = ["dependencies"]
 
 [project.optional-dependencies]
 controller = [
@@ -81,6 +85,9 @@ cryptography = "^43.0.3"
 
 [tool.importlinter]
 root_package = "polyglot_pigeon"
+# Needed for the LLM-SDK contract below: without it grimp only graphs imports
+# between polyglot_pigeon modules and `import anthropic` is invisible.
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "shared must not depend on content or services"
@@ -103,6 +110,20 @@ source_modules = [
     "polyglot_pigeon.services.bot",
 ]
 forbidden_modules = ["polyglot_pigeon.content"]
+
+# Under one distribution the LLM SDKs are installed on every developer machine
+# and inside every image built without extras scoping, so a stray
+# `import anthropic` in ingest would run fine. Only this contract catches it.
+[[tool.importlinter.contracts]]
+name = "only the controller service may depend on the LLM SDKs"
+type = "forbidden"
+source_modules = [
+    "polyglot_pigeon.shared",
+    "polyglot_pigeon.services.ingest",
+    "polyglot_pigeon.services.courier",
+    "polyglot_pigeon.services.bot",
+]
+forbidden_modules = ["anthropic", "openai"]
 
 [[tool.importlinter.contracts]]
 name = "services must not depend on each other"
