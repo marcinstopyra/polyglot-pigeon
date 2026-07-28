@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from polyglot_pigeon.config import ConfigLoader, get_config
+from polyglot_pigeon.shared.config import ConfigLoader, get_config
 from polyglot_pigeon.shared.models.configurations import (
     Config,
     Language,

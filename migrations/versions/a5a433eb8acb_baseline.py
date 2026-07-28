@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-import polyglot_pigeon.db.types as pp
+import polyglot_pigeon.shared.db.types as pp
 
 
 # revision identifiers, used by Alembic.

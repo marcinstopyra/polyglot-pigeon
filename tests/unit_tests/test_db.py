@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import Column, Integer, MetaData, String, Table, select
 from sqlalchemy.exc import OperationalError, StatementError
 
-from polyglot_pigeon.db.types import UtcDateTime
+from polyglot_pigeon.shared.db.types import UtcDateTime
 
 _metadata = MetaData()
 _sample = Table(

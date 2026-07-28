@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 import schedule
 
-from polyglot_pigeon.config import get_config
+from polyglot_pigeon.shared.config import get_config
 from polyglot_pigeon.services.ingest import EmailReader
 from polyglot_pigeon.shared.models.configurations import Config
 from polyglot_pigeon.scheduler.pipeline import (

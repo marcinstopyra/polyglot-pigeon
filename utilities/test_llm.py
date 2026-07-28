@@ -32,7 +32,7 @@ def setup_logging(verbose: bool = False) -> None:
 def get_config_from_args(args) -> LLMConfig:
     """Build LLMConfig from command line args or config file."""
     if args.config:
-        from polyglot_pigeon.config import ConfigLoader
+        from polyglot_pigeon.shared.config import ConfigLoader
 
         config_path = Path(args.config)
         if not config_path.exists():

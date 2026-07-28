@@ -3,7 +3,7 @@ from contextlib import contextmanager
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from polyglot_pigeon.db.engine import get_engine
+from polyglot_pigeon.shared.db.engine import get_engine
 
 
 def get_session_factory(engine=None) -> sessionmaker[Session]:

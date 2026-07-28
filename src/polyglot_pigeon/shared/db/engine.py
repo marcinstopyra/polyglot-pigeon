@@ -2,7 +2,7 @@ from functools import lru_cache
 
 from sqlalchemy import Engine, create_engine
 
-from polyglot_pigeon.db.settings import DatabaseSettings
+from polyglot_pigeon.shared.db.settings import DatabaseSettings
 
 
 def create_db_engine(settings: DatabaseSettings | None = None) -> Engine:

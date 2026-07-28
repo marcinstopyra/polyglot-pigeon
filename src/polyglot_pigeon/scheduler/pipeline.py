@@ -14,7 +14,7 @@ import pytz
 from jinja2 import Environment, FileSystemLoader
 from pydantic import ValidationError
 
-from polyglot_pigeon.config import get_config
+from polyglot_pigeon.shared.config import get_config
 from polyglot_pigeon.content.llm import create_llm_client
 from polyglot_pigeon.content.llm.models import LLMMessage, LLMResponse, MessageRole
 from polyglot_pigeon.content.prompts import PromptManager

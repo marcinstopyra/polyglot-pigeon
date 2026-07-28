@@ -42,7 +42,7 @@ class ConfigLoader:
         search_paths = [
             Path.cwd() / "config.yaml",
             Path.cwd().parent / "config.yaml",
-            Path(__file__).parent.parent.parent.parent / "config.yaml",
+            Path(__file__).parents[5] / "config.yaml",
         ]
         for path in search_paths:
             if path.exists():

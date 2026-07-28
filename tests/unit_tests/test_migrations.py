@@ -8,8 +8,8 @@ from alembic.config import Config as AlembicConfig
 from alembic.migration import MigrationContext
 from alembic.operations import ops
 
-from polyglot_pigeon.db.base import Base
-from polyglot_pigeon.db.types import UtcDateTime
+from polyglot_pigeon.shared.db.base import Base
+from polyglot_pigeon.shared.db.types import UtcDateTime
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

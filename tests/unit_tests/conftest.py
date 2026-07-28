@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
 
-from polyglot_pigeon.db.settings import DatabaseSettings
+from polyglot_pigeon.shared.db.settings import DatabaseSettings
 
 
 @pytest.fixture(scope="session")
