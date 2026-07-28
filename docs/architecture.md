@@ -876,9 +876,10 @@ migration.
 - **Explicit string lengths** — `String(255)`, never bare `String`.
 - **`utf8mb4`** charset. Matters for a language-learning product: without it,
   emoji and some accented characters are lost.
-- **All datetimes stored as UTC**, explicitly — as `DATETIME(6)` behind a shared
-  `UtcDateTime` type, never `TIMESTAMP` (§10). Timestamps are set by the
-  application, never by a server default, so the type is always on the path.
+- **All datetimes stored as UTC**, explicitly — as `DATETIME` (whole-second
+  precision) behind a shared `UtcDateTime` type, never `TIMESTAMP` (§10).
+  Timestamps are set by the application, never by a server default, so the
+  type is always on the path.
 - **Alembic `batch_alter_table`** for migrations — kept for migration
   ergonomics, not portability. The schema deliberately uses MySQL-specific
   features (`SET`, `ENUM`, `SKIP LOCKED`); there is no other-backend exit and
@@ -915,6 +916,14 @@ migration.
   a batch. The same story ingested at 08:00 and 09:00 produces two topics. The
   `canonical_topic_id` column exists to support a later merge pass; the merge
   policy itself is not yet decided.
+- **Second-resolution timestamps make `created_at` ties routine.** §6's source
+  resolution falls back to the oldest translation row when no `en` row exists;
+  at whole-second precision, translations written in the same batch — the
+  common case, since one LLM call fans out to several languages at once — can
+  share a `created_at`, and "oldest" among them becomes arbitrary. Harmless
+  today, since the resolved source only decides which row `source_hash`
+  compares against, but source-language resolution is not fully deterministic
+  (§10).
 
 ---
 
@@ -976,12 +985,13 @@ migration.
   harmless; and an outstanding-job counter, which races on concurrent
   decrements and hangs forever when an extract crashes without decrementing.
   Nothing is kept in sync; the check counts reality each time.
-- **UTC is stored as `DATETIME(6)` behind a `UtcDateTime` type decorator**, not
-  `TIMESTAMP` (§8). Nothing in this design asks the database to do time
-  arithmetic: `send_time` + `users.timezone` → `next_run_at` is computed in
-  Python with `zoneinfo`, because that is the only place DST gaps and folds can
-  be handled correctly. The column's only job is to return the exact instant
-  that was written. The decorator rejects naive datetimes on bind and re-attaches
+- **UTC is stored as `DATETIME` (MySQL's default whole-second precision)
+  behind a `UtcDateTime` type decorator**, not `TIMESTAMP` (§8). Nothing in
+  this design asks the database to do time arithmetic: `send_time` +
+  `users.timezone` → `next_run_at` is computed in Python with `zoneinfo`,
+  because that is the only place DST gaps and folds can be handled correctly.
+  The column's only job is to return the exact instant that was written, to
+  the second. The decorator rejects naive datetimes on bind and re-attaches
   `timezone.utc` on load, which matters specifically because **SQLAlchemy's
   `DateTime(timezone=True)` is a silent no-op on MySQL** — it emits plain
   `DATETIME` and the driver returns naive values, so convention alone has nothing
@@ -990,10 +1000,13 @@ migration.
   `time_zone` rather than on the schema, and carries the legacy auto-init /
   auto-update behaviour that a server variable can switch back on. Also
   *rejected:* `BIGINT` epoch, which is unambiguous but costs the legibility of
-  reading the job queue by hand — the design's main debugging surface.
-  Microsecond precision is explicit: at the MySQL default of whole seconds,
-  §6's "oldest by `created_at`" source resolution ties routinely and resolves
-  arbitrarily.
+  reading the job queue by hand — the design's main debugging surface. Also
+  *rejected:* `DATETIME(6)` microsecond precision — second-level accuracy is
+  the deliberate ceiling, since nothing in this design schedules or orders
+  events faster than that. One consequence is accepted: §6's "oldest by
+  `created_at`" source resolution now ties routinely when translations for the
+  same text land in the same second, and resolves arbitrarily between them
+  (§9).
 - **One `pyproject.toml` for the whole monorepo — a single distribution** (§4).
   Not one `pyproject.toml` per package with Poetry path dependencies. The
   trade is deliberate: fewer files and one dependency resolution, in exchange
