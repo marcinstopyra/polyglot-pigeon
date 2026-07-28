@@ -5,7 +5,7 @@ import pytest
 import yaml
 
 from polyglot_pigeon.config import ConfigLoader, get_config
-from polyglot_pigeon.models.configurations import (
+from polyglot_pigeon.shared.models.configurations import (
     Config,
     Language,
     LanguageConfig,

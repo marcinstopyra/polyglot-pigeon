@@ -5,8 +5,8 @@ from uuid import uuid4
 
 import pytest
 
-from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
-from polyglot_pigeon.models.models import (
+from polyglot_pigeon.content.llm.models import LLMMessage, LLMResponse, MessageRole
+from polyglot_pigeon.shared.models.models import (
     SourceArticleDescriptor,
     TopicExtractionResponse,
     CurationResponse,

@@ -1,7 +1,7 @@
 import pytest
 import yaml
 
-from polyglot_pigeon.prompts import PromptManager
+from polyglot_pigeon.content.prompts import PromptManager
 
 
 class TestPromptManager:

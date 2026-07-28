@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from polyglot_pigeon.mail import EmailReader
-from polyglot_pigeon.models.configurations import SourceEmailConfig
-from polyglot_pigeon.models.models import Email
+from polyglot_pigeon.services.ingest import EmailReader
+from polyglot_pigeon.shared.models.configurations import SourceEmailConfig
+from polyglot_pigeon.shared.models.models import Email
 
 
 class TestEmailReader:
@@ -29,7 +29,7 @@ class TestEmailReader:
 
     @pytest.fixture
     def mock_imap(self):
-        with patch("polyglot_pigeon.mail.reader.imaplib.IMAP4_SSL") as mock:
+        with patch("polyglot_pigeon.services.ingest.reader.imaplib.IMAP4_SSL") as mock:
             mock_connection = MagicMock()
             mock.return_value = mock_connection
             yield mock_connection
@@ -249,7 +249,7 @@ class TestFetchEmails:
 
     @pytest.fixture
     def mock_imap(self):
-        with patch("polyglot_pigeon.mail.reader.imaplib.IMAP4_SSL") as mock:
+        with patch("polyglot_pigeon.services.ingest.reader.imaplib.IMAP4_SSL") as mock:
             mock_connection = MagicMock()
             mock.return_value = mock_connection
             yield mock_connection
@@ -321,7 +321,7 @@ class TestMarkAsReadAndLabel:
 
     @pytest.fixture
     def mock_imap(self):
-        with patch("polyglot_pigeon.mail.reader.imaplib.IMAP4_SSL") as mock:
+        with patch("polyglot_pigeon.services.ingest.reader.imaplib.IMAP4_SSL") as mock:
             mock_connection = MagicMock()
             mock.return_value = mock_connection
             yield mock_connection

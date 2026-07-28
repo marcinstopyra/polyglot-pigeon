@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from polyglot_pigeon.models.configurations import Config
+from polyglot_pigeon.shared.models.configurations import Config
 
 
 class ConfigLoader:

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from polyglot_pigeon.models.configurations import (
+from polyglot_pigeon.shared.models.configurations import (
     Config,
     Language,
     LanguageConfig,
@@ -16,7 +16,7 @@ from polyglot_pigeon.models.configurations import (
     SourceEmailConfig,
     TargetEmailConfig,
 )
-from polyglot_pigeon.models.models import Email
+from polyglot_pigeon.shared.models.models import Email
 from polyglot_pigeon.scheduler import (
     EmailScheduler,
     PlaceholderPipeline,

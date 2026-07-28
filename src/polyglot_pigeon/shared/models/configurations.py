@@ -3,7 +3,7 @@ from pathlib import Path
 
 from pydantic import Field
 
-from polyglot_pigeon.models.models import MyBaseModel
+from polyglot_pigeon.shared.models.models import MyBaseModel
 
 
 class SourceEmailConfig(MyBaseModel):

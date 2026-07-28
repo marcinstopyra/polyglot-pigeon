@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from polyglot_pigeon.content import ContentCleaner
-from polyglot_pigeon.models.models import Email
+from polyglot_pigeon.services.ingest import ContentCleaner
+from polyglot_pigeon.shared.models.models import Email
 
 # Enough padding to push any footer trigger past the 60% tail threshold.
 _PAD = "Article content fills space. " * 6

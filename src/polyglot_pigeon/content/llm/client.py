@@ -4,8 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Iterator
 
-from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
-from polyglot_pigeon.models.configurations import LLMConfig
+from polyglot_pigeon.content.llm.models import LLMMessage, LLMResponse, MessageRole
+from polyglot_pigeon.shared.models.configurations import LLMConfig
 
 log = logging.getLogger(__name__)
 

@@ -29,7 +29,7 @@ from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from polyglot_pigeon.config import ConfigLoader
-from polyglot_pigeon.mail import EmailSender
+from polyglot_pigeon.services.courier import EmailSender
 
 
 class EmailInput(BaseModel):

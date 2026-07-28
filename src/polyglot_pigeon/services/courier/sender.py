@@ -9,7 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
 
-from polyglot_pigeon.models.configurations import TargetEmailConfig
+from polyglot_pigeon.shared.models.configurations import TargetEmailConfig
 
 log = logging.getLogger(__name__)
 

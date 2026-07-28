@@ -17,8 +17,8 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from polyglot_pigeon.llm import LLMMessage, MessageRole, create_llm_client
-from polyglot_pigeon.models.configurations import LLMConfig, LLMProvider
+from polyglot_pigeon.content.llm import LLMMessage, MessageRole, create_llm_client
+from polyglot_pigeon.shared.models.configurations import LLMConfig, LLMProvider
 
 
 def setup_logging(verbose: bool = False) -> None:

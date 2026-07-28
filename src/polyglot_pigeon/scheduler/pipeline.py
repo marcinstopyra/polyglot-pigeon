@@ -15,12 +15,13 @@ from jinja2 import Environment, FileSystemLoader
 from pydantic import ValidationError
 
 from polyglot_pigeon.config import get_config
-from polyglot_pigeon.content import chunk_email
-from polyglot_pigeon.llm import create_llm_client
-from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
-from polyglot_pigeon.models.configurations import LLMConfig
-from polyglot_pigeon.mail import EmailSender, InlineImage
-from polyglot_pigeon.models.models import (
+from polyglot_pigeon.content.llm import create_llm_client
+from polyglot_pigeon.content.llm.models import LLMMessage, LLMResponse, MessageRole
+from polyglot_pigeon.content.prompts import PromptManager
+from polyglot_pigeon.shared.models.configurations import LLMConfig
+from polyglot_pigeon.services.courier import EmailSender, InlineImage
+from polyglot_pigeon.services.ingest import chunk_email
+from polyglot_pigeon.shared.models.models import (
     SourceArticleDescriptor,
     TopicExtractionResponse,
     CurationResponse,
@@ -30,7 +31,6 @@ from polyglot_pigeon.models.models import (
     ChunkedSourceEmail,
     TargetEmailContent,
 )
-from polyglot_pigeon.prompts import PromptManager
 
 log = logging.getLogger(__name__)
 
