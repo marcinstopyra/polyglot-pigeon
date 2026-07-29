@@ -14,23 +14,23 @@ import pytz
 from jinja2 import Environment, FileSystemLoader
 from pydantic import ValidationError
 
-from polyglot_pigeon.config import get_config
-from polyglot_pigeon.content import chunk_email
-from polyglot_pigeon.llm import create_llm_client
-from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
-from polyglot_pigeon.models.configurations import LLMConfig
-from polyglot_pigeon.mail import EmailSender, InlineImage
-from polyglot_pigeon.models.models import (
-    SourceArticleDescriptor,
-    TopicExtractionResponse,
+from polyglot_pigeon.content.llm import create_llm_client
+from polyglot_pigeon.content.llm.models import LLMMessage, LLMResponse, MessageRole
+from polyglot_pigeon.content.prompts import PromptManager
+from polyglot_pigeon.services.courier import EmailSender, InlineImage
+from polyglot_pigeon.services.ingest import chunk_email
+from polyglot_pigeon.shared.config import get_config
+from polyglot_pigeon.shared.models.configurations import LLMConfig
+from polyglot_pigeon.shared.models.models import (
+    ChunkedSourceEmail,
     CurationResponse,
     Email,
     MyBaseModel,
     SelectedArticle,
-    ChunkedSourceEmail,
+    SourceArticleDescriptor,
     TargetEmailContent,
+    TopicExtractionResponse,
 )
-from polyglot_pigeon.prompts import PromptManager
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +65,7 @@ class TokenUsageAccumulator:
             f"estimated cost: {estimated_cost} "
             f"(tokens used: in={self.input_tokens}; out={self.output_tokens})"
         )
+
 
 _TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 _LOGO_PATH = _TEMPLATES_DIR / "logo.png"
@@ -128,7 +129,9 @@ def _parse_json_with_retry(
         result, error = _try_parse(current)
         if result is not None:
             return result
-        log.debug(f"Retry {attempt + 1} JSON parse failed ({model_class.__name__}): {error}")
+        log.debug(
+            f"Retry {attempt + 1} JSON parse failed ({model_class.__name__}): {error}"
+        )
         log.debug(f"LLM fix response:\n{current}")
     else:
         raise ValueError(
@@ -270,7 +273,10 @@ class EmailProcessingPipeline(Pipeline):
 
         for source in source_list:
             email_contents_json = json.dumps(
-                [{"chunk_id": str(c.chunk_id), "text": c.text} for c in source.email_contents],
+                [
+                    {"chunk_id": str(c.chunk_id), "text": c.text}
+                    for c in source.email_contents
+                ],
                 indent=2,
             )
             user_prompt = prompts.get(
@@ -407,9 +413,7 @@ class EmailProcessingPipeline(Pipeline):
 
             chunk_map = {c.chunk_id: c.text for c in source.email_contents}
             chunks = [
-                chunk_map[loc]
-                for loc in topic.content_locations
-                if loc in chunk_map
+                chunk_map[loc] for loc in topic.content_locations if loc in chunk_map
             ]
             articles.append(
                 SelectedArticle(
@@ -545,7 +549,9 @@ class EmailProcessingPipeline(Pipeline):
 
         cost_info: str | None = None
         if pipeline_cfg.show_cost_in_footer:
-            cost_info = self._accumulator.format_footer(self.config.llm.model, self.config.llm)
+            cost_info = self._accumulator.format_footer(
+                self.config.llm.model, self.config.llm
+            )
 
         return DigestContent(
             subject=subject,

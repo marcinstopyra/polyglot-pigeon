@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 from email.header import decode_header
 from email.message import Message
 
-from polyglot_pigeon.models.configurations import SourceEmailConfig
-from polyglot_pigeon.models.models import Email
+from polyglot_pigeon.shared.models.configurations import SourceEmailConfig
+from polyglot_pigeon.shared.models.models import Email
 
 log = logging.getLogger(__name__)
 

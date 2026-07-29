@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from polyglot_pigeon.models.configurations import Config
+from polyglot_pigeon.shared.models.configurations import Config
 
 
 class ConfigLoader:
@@ -42,7 +42,7 @@ class ConfigLoader:
         search_paths = [
             Path.cwd() / "config.yaml",
             Path.cwd().parent / "config.yaml",
-            Path(__file__).parent.parent.parent.parent / "config.yaml",
+            Path(__file__).parents[5] / "config.yaml",
         ]
         for path in search_paths:
             if path.exists():

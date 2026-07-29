@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
-from polyglot_pigeon.models.models import Email
+from polyglot_pigeon.shared.models.models import Email
 
 log = logging.getLogger(__name__)
 

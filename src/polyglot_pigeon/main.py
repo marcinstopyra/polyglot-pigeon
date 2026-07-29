@@ -2,8 +2,8 @@ import argparse
 import logging
 from pathlib import Path
 
-from polyglot_pigeon.config import ConfigLoader, get_config
 from polyglot_pigeon.scheduler import EmailProcessingPipeline, EmailScheduler
+from polyglot_pigeon.shared.config import ConfigLoader, get_config
 
 log = logging.getLogger(__name__)
 

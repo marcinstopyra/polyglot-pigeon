@@ -7,6 +7,7 @@ format:
 lint:
 	poetry run ruff check .
 	poetry run ruff format --check .
+	poetry run lint-imports
 
 db-up:
 	docker compose up -d db

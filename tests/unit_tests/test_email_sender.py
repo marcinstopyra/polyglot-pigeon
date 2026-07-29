@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from polyglot_pigeon.mail import EmailSender, InlineImage
-from polyglot_pigeon.models.configurations import TargetEmailConfig
+from polyglot_pigeon.services.courier import EmailSender, InlineImage
+from polyglot_pigeon.shared.models.configurations import TargetEmailConfig
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def target_config():
 
 @pytest.fixture
 def mock_smtp():
-    with patch("polyglot_pigeon.mail.sender.smtplib.SMTP") as mock:
+    with patch("polyglot_pigeon.services.courier.sender.smtplib.SMTP") as mock:
         mock_connection = MagicMock()
         mock.return_value = mock_connection
         yield mock_connection
@@ -161,8 +161,8 @@ class TestRetryMechanism:
             retry_delay=0.01,  # Fast retries for tests
         )
 
-    @patch("polyglot_pigeon.mail.sender.time.sleep")
-    @patch("polyglot_pigeon.mail.sender.smtplib.SMTP")
+    @patch("polyglot_pigeon.services.courier.sender.time.sleep")
+    @patch("polyglot_pigeon.services.courier.sender.smtplib.SMTP")
     def test_connect_retries_on_timeout(
         self, mock_smtp_class, mock_sleep, retry_config
     ):
@@ -180,8 +180,8 @@ class TestRetryMechanism:
         assert mock_sleep.call_count == 2
         assert sender._connection is mock_connection
 
-    @patch("polyglot_pigeon.mail.sender.time.sleep")
-    @patch("polyglot_pigeon.mail.sender.smtplib.SMTP")
+    @patch("polyglot_pigeon.services.courier.sender.time.sleep")
+    @patch("polyglot_pigeon.services.courier.sender.smtplib.SMTP")
     def test_connect_raises_after_all_retries_exhausted(
         self, mock_smtp_class, mock_sleep, retry_config
     ):
@@ -195,9 +195,11 @@ class TestRetryMechanism:
         assert mock_smtp_class.call_count == 3  # 1 initial + 2 retries
         assert mock_sleep.call_count == 2
 
-    @patch("polyglot_pigeon.mail.sender.time.sleep")
+    @patch("polyglot_pigeon.services.courier.sender.time.sleep")
     def test_send_retries_on_timeout(self, mock_sleep, retry_config):
-        with patch("polyglot_pigeon.mail.sender.smtplib.SMTP") as mock_smtp_class:
+        with patch(
+            "polyglot_pigeon.services.courier.sender.smtplib.SMTP"
+        ) as mock_smtp_class:
             mock_connection = MagicMock()
             mock_smtp_class.return_value = mock_connection
             mock_connection.send_message.side_effect = [
@@ -213,9 +215,11 @@ class TestRetryMechanism:
             assert mock_connection.send_message.call_count == 3
             assert mock_sleep.call_count == 2
 
-    @patch("polyglot_pigeon.mail.sender.time.sleep")
+    @patch("polyglot_pigeon.services.courier.sender.time.sleep")
     def test_send_raises_after_all_retries_exhausted(self, mock_sleep, retry_config):
-        with patch("polyglot_pigeon.mail.sender.smtplib.SMTP") as mock_smtp_class:
+        with patch(
+            "polyglot_pigeon.services.courier.sender.smtplib.SMTP"
+        ) as mock_smtp_class:
             mock_connection = MagicMock()
             mock_smtp_class.return_value = mock_connection
             mock_connection.send_message.side_effect = socket.timeout("Send timed out")
@@ -228,8 +232,8 @@ class TestRetryMechanism:
 
             assert mock_connection.send_message.call_count == 3
 
-    @patch("polyglot_pigeon.mail.sender.time.sleep")
-    @patch("polyglot_pigeon.mail.sender.smtplib.SMTP")
+    @patch("polyglot_pigeon.services.courier.sender.time.sleep")
+    @patch("polyglot_pigeon.services.courier.sender.smtplib.SMTP")
     def test_connect_retries_on_os_error(
         self, mock_smtp_class, mock_sleep, retry_config
     ):

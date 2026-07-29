@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Lowest version the project supports, so CI fails on anything that
+          # only works on a newer interpreter.
+          python-version: "3.12"
+
+      - name: Install Poetry
+        # poetry.lock is lock-version 2.1, which needs Poetry >= 2.1 to read.
+        run: pipx install 'poetry~=2.3'
+
+      - name: Check poetry.lock is in sync with pyproject.toml
+        run: poetry check --lock
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      # ruff check, ruff format --check, and lint-imports. The import contracts
+      # are the only thing enforcing the shared/content/services dependency
+      # graph — there is no packaging barrier behind them under one
+      # distribution, so a broken contract must fail the build.
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: poetry run pytest

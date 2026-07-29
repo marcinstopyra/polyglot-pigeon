@@ -4,7 +4,7 @@ import re
 from html.parser import HTMLParser
 from uuid import uuid4
 
-from polyglot_pigeon.models.models import Email, EmailChunk, ChunkedSourceEmail
+from polyglot_pigeon.shared.models.models import ChunkedSourceEmail, Email, EmailChunk
 
 _CHUNK_BOUNDARY_TAGS = frozenset({"h1", "h2", "h3", "h4", "article", "section"})
 _BLOCK_TAGS = frozenset({"p", "br", "div", "li"})

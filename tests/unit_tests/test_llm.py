@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from polyglot_pigeon.llm import (
+from polyglot_pigeon.content.llm import (
     ClaudeClient,
     LLMMessage,
     LLMResponse,
@@ -11,7 +11,7 @@ from polyglot_pigeon.llm import (
     OpenAICompatibleClient,
     create_llm_client,
 )
-from polyglot_pigeon.models.configurations import LLMConfig
+from polyglot_pigeon.shared.models.configurations import LLMConfig
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 

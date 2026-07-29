@@ -2,7 +2,7 @@
 
 from enum import Enum, auto
 
-from polyglot_pigeon.models.models import MyBaseModel
+from polyglot_pigeon.shared.models.models import MyBaseModel
 
 
 class MessageRole(Enum):

@@ -1,15 +1,15 @@
-"""Tests for the email chunker (content/chunker.py)."""
+"""Tests for the email chunker (services/ingest/chunker.py)."""
 
 from datetime import datetime
 from uuid import UUID
 
-from polyglot_pigeon.content.chunker import (
+from polyglot_pigeon.services.ingest.chunker import (
     _chunk_html,
     _chunk_plain_text,
     _extract_sender_name,
     chunk_email,
 )
-from polyglot_pigeon.models.models import Email, ChunkedSourceEmail
+from polyglot_pigeon.shared.models.models import ChunkedSourceEmail, Email
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 

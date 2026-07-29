@@ -17,8 +17,8 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from polyglot_pigeon.llm import LLMMessage, MessageRole, create_llm_client
-from polyglot_pigeon.models.configurations import LLMConfig, LLMProvider
+from polyglot_pigeon.content.llm import LLMMessage, MessageRole, create_llm_client
+from polyglot_pigeon.shared.models.configurations import LLMConfig, LLMProvider
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -32,7 +32,7 @@ def setup_logging(verbose: bool = False) -> None:
 def get_config_from_args(args) -> LLMConfig:
     """Build LLMConfig from command line args or config file."""
     if args.config:
-        from polyglot_pigeon.config import ConfigLoader
+        from polyglot_pigeon.shared.config import ConfigLoader
 
         config_path = Path(args.config)
         if not config_path.exists():

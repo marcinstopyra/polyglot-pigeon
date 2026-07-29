@@ -1,10 +1,10 @@
-from polyglot_pigeon.llm.client import (
+from polyglot_pigeon.content.llm.client import (
     ClaudeClient,
     LLMClient,
     OpenAICompatibleClient,
     create_llm_client,
 )
-from polyglot_pigeon.llm.models import LLMMessage, LLMResponse, MessageRole
+from polyglot_pigeon.content.llm.models import LLMMessage, LLMResponse, MessageRole
 
 __all__ = [
     "ClaudeClient",
