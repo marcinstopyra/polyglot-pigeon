@@ -19,8 +19,7 @@ from polyglot_pigeon.content.llm.models import LLMMessage, LLMResponse, MessageR
 from polyglot_pigeon.content.prompts import PromptManager
 from polyglot_pigeon.services.courier import EmailSender, InlineImage
 from polyglot_pigeon.services.ingest import chunk_email
-from polyglot_pigeon.shared.config import get_config
-from polyglot_pigeon.shared.models.configurations import LLMConfig
+from polyglot_pigeon.shared.models.configurations import Config, LLMConfig
 from polyglot_pigeon.shared.models.models import (
     ChunkedSourceEmail,
     CurationResponse,
@@ -241,8 +240,14 @@ class EmailProcessingPipeline(Pipeline):
     6. Render and send via SMTP
     """
 
-    def __init__(self):
-        self.config = get_config()
+    def __init__(self, config: Config):
+        """
+        Args:
+            config: Application configuration, injected by the caller. The
+                pipeline no longer reaches for a global — `EmailScheduler` is
+                handed a factory that already closes over the config.
+        """
+        self.config = config
         self._accumulator = TokenUsageAccumulator()
 
     # ── Stage 1: Chunk emails ─────────────────────────────────────────────────

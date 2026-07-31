@@ -3,9 +3,9 @@
 Test script to fetch emails, clean them with ContentCleaner, and save to .md file.
 
 Usage:
-    python utilities/test_cleaner.py -c config.yaml
-    python utilities/test_cleaner.py -c config.yaml --fetch-days 3 --max-emails 10
-    python utilities/test_cleaner.py -c config.yaml --output-dir ./output
+    python utilities/test_cleaner.py
+    python utilities/test_cleaner.py --fetch-days 3 --max-emails 10
+    python utilities/test_cleaner.py --output-dir ./output
 """
 
 import argparse
@@ -18,7 +18,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from polyglot_pigeon.shared.config import ConfigLoader
+from polyglot_pigeon.shared.config import SingleTenantSettings
 from polyglot_pigeon.services.ingest import ContentCleaner, EmailReader
 
 
@@ -35,13 +35,10 @@ def main() -> None:
         description="Fetch emails, clean with ContentCleaner, save to .md file"
     )
     parser.add_argument(
-        "-c", "--config", required=True, help="Path to config.yaml file"
-    )
-    parser.add_argument(
         "--fetch-days",
         type=int,
         default=None,
-        help="Number of days to fetch emails from (overrides config)",
+        help="Number of days to fetch emails from (overrides IMAP_FETCH_DAYS)",
     )
     parser.add_argument(
         "--include-read",
@@ -74,14 +71,7 @@ def main() -> None:
     args = parser.parse_args()
     setup_logging(args.verbose)
 
-    # Load config
-    config_path = Path(args.config)
-    if not config_path.exists():
-        print(f"Error: Config file not found: {config_path}")
-        sys.exit(1)
-
-    loader = ConfigLoader()
-    config = loader.load(config_path)
+    config = SingleTenantSettings().to_config()
 
     if args.fetch_days is not None:
         config.source_email.fetch_days = args.fetch_days

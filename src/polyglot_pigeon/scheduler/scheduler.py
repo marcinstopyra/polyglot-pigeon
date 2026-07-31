@@ -15,7 +15,6 @@ from polyglot_pigeon.scheduler.pipeline import (
     ProcessingResult,
 )
 from polyglot_pigeon.services.ingest import EmailReader
-from polyglot_pigeon.shared.config import get_config
 from polyglot_pigeon.shared.models.configurations import Config
 
 log = logging.getLogger(__name__)
@@ -31,18 +30,18 @@ class EmailScheduler:
 
     def __init__(
         self,
-        config: Config | None = None,
+        config: Config,
         pipeline_factory: Callable[[], Pipeline] | None = None,
     ):
         """
         Initialize the scheduler.
 
         Args:
-            config: Application configuration. If None, loads from ConfigLoader.
+            config: Application configuration, built by the caller's `main()`.
             pipeline_factory: Callable that produces a fresh Pipeline on each run.
                 If None, uses PlaceholderPipeline.
         """
-        self.config = config or get_config()
+        self.config = config
         self._pipeline_factory = pipeline_factory or PlaceholderPipeline
         self._running = False
 

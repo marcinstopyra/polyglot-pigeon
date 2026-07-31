@@ -3,9 +3,9 @@
 Test script to read emails from source email using EmailReader.
 
 Usage:
-    python utilities/read_emails.py -c config.yaml
-    python utilities/read_emails.py -c config.yaml --fetch-days 7
-    python utilities/read_emails.py -c config.yaml --fetch-days 3 --include-read
+    python utilities/read_emails.py
+    python utilities/read_emails.py --fetch-days 7
+    python utilities/read_emails.py --fetch-days 3 --include-read
 """
 
 import argparse
@@ -16,7 +16,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from polyglot_pigeon.shared.config import ConfigLoader
+from polyglot_pigeon.shared.config import SingleTenantSettings
 from polyglot_pigeon.services.ingest import EmailReader
 
 
@@ -33,13 +33,10 @@ def main() -> None:
         description="Test script to read emails from source email"
     )
     parser.add_argument(
-        "-c", "--config", required=True, help="Path to config.yaml file"
-    )
-    parser.add_argument(
         "--fetch-days",
         type=int,
         default=None,
-        help="Number of days to fetch emails from (overrides config)",
+        help="Number of days to fetch emails from (overrides IMAP_FETCH_DAYS)",
     )
     parser.add_argument(
         "--include-read",
@@ -66,14 +63,7 @@ def main() -> None:
     args = parser.parse_args()
     setup_logging(args.verbose)
 
-    # Load config
-    config_path = Path(args.config)
-    if not config_path.exists():
-        print(f"Error: Config file not found: {config_path}")
-        sys.exit(1)
-
-    loader = ConfigLoader()
-    config = loader.load(config_path)
+    config = SingleTenantSettings().to_config()
 
     # Override fetch_days if provided
     if args.fetch_days is not None:

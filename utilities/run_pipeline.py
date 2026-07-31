@@ -2,12 +2,14 @@
 """
 Interactive script to run selected emails through the full processing pipeline.
 
-Usage:
-    python utilities/run_pipeline.py -c config.yaml --dry-run
-    python utilities/run_pipeline.py -c config.yaml --dry-run --output-dir ./output
-    python utilities/run_pipeline.py -c config.yaml --fetch-days 3 --max-emails 10
+Configuration comes from the environment / .env file — see .env.example.
 
-Prompt overrides are configured via `pipeline.prompts_path` in config.yaml.
+Usage:
+    python utilities/run_pipeline.py --dry-run
+    python utilities/run_pipeline.py --dry-run --output-dir ./output
+    python utilities/run_pipeline.py --fetch-days 3 --max-emails 10
+
+Prompt overrides are configured via PIPELINE_PROMPTS_PATH.
 """
 
 import argparse
@@ -20,7 +22,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from polyglot_pigeon.shared.config import ConfigLoader
+from polyglot_pigeon.shared.config import SingleTenantSettings
 from polyglot_pigeon.services.ingest import EmailReader
 from polyglot_pigeon.scheduler.pipeline import EmailProcessingPipeline
 
@@ -63,13 +65,10 @@ def main() -> None:
         description="Run selected emails through the full processing pipeline"
     )
     parser.add_argument(
-        "-c", "--config", required=True, help="Path to config.yaml file"
-    )
-    parser.add_argument(
         "--fetch-days",
         type=int,
         default=None,
-        help="Number of days to fetch emails from (overrides config)",
+        help="Number of days to fetch emails from (overrides IMAP_FETCH_DAYS)",
     )
     parser.add_argument(
         "--include-read",
@@ -95,14 +94,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # Load config
-    config_path = Path(args.config)
-    if not config_path.exists():
-        print(f"Error: Config file not found: {config_path}")
-        sys.exit(1)
-
-    loader = ConfigLoader()
-    config = loader.load(config_path)
+    config = SingleTenantSettings().to_config()
 
     log_level = getattr(logging, config.logging.level.upper(), logging.INFO)
     setup_logging(log_level)
@@ -160,7 +152,7 @@ def main() -> None:
 
     # Build digest
     print("\nBuilding digest...")
-    pipeline = EmailProcessingPipeline()
+    pipeline = EmailProcessingPipeline(config)
     try:
         digest = pipeline.build_digest(selected)
     except Exception as e:

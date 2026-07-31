@@ -3,9 +3,9 @@
 Test script to interact with LLM providers.
 
 Usage:
-    python utilities/test_llm.py -c config.yaml
-    python utilities/test_llm.py -c config.yaml --provider claude --model claude-3-haiku-20240307
-    python utilities/test_llm.py -c config.yaml --prompt "Translate 'hello' to German"
+    python utilities/test_llm.py
+    python utilities/test_llm.py --api-key sk-... --provider claude --model claude-haiku-4-5-20251001
+    python utilities/test_llm.py --prompt "Translate 'hello' to German"
     python utilities/test_llm.py --provider openai --api-key $OPENAI_API_KEY --prompt "Say hi"
 """
 
@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from polyglot_pigeon.content.llm import LLMMessage, MessageRole, create_llm_client
+from polyglot_pigeon.shared.config import ControllerSettings
 from polyglot_pigeon.shared.models.configurations import LLMConfig, LLMProvider
 
 
@@ -30,18 +31,17 @@ def setup_logging(verbose: bool = False) -> None:
 
 
 def get_config_from_args(args) -> LLMConfig:
-    """Build LLMConfig from command line args or config file."""
-    if args.config:
-        from polyglot_pigeon.shared.config import ConfigLoader
-
-        config_path = Path(args.config)
-        if not config_path.exists():
-            print(f"Error: Config file not found: {config_path}")
-            sys.exit(1)
-
-        loader = ConfigLoader()
-        full_config = loader.load(config_path)
-        llm_config = full_config.llm
+    """Build LLMConfig from the environment, overridden by command line args."""
+    if not args.api_key:
+        settings = ControllerSettings().llm
+        llm_config = LLMConfig(
+            api_key=settings.api_key.get_secret_value(),
+            model=settings.model,
+            url=settings.url,
+            provider=settings.provider,
+            max_tokens=settings.max_tokens,
+            temperature=settings.temperature,
+        )
 
         # Override with CLI args if provided
         if args.provider:
@@ -59,10 +59,7 @@ def get_config_from_args(args) -> LLMConfig:
 
     # Build config from CLI args only
     if not args.provider:
-        print("Error: --provider is required when not using a config file")
-        sys.exit(1)
-    if not args.api_key:
-        print("Error: --api-key is required when not using a config file")
+        print("Error: --provider is required when --api-key is given")
         sys.exit(1)
 
     return LLMConfig(
@@ -164,16 +161,13 @@ def main() -> None:
         description="Test script to interact with LLM providers"
     )
     parser.add_argument(
-        "-c", "--config", help="Path to config.yaml file (optional)"
-    )
-    parser.add_argument(
         "--provider",
         choices=["claude", "openai", "perplexity"],
-        help="LLM provider (required if no config file)",
+        help="LLM provider (required if --api-key is given)",
     )
     parser.add_argument(
         "--api-key",
-        help="API key (required if no config file)",
+        help="API key (default: LLM_API_KEY from the environment)",
     )
     parser.add_argument(
         "--model",
