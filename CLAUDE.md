@@ -109,13 +109,16 @@ make lint
 poetry run pytest
 
 # Run a single test file
-poetry run pytest tests/unit_tests/test_config.py
+poetry run pytest tests/unit_tests/test_settings.py
 
 # Run a specific test
-poetry run pytest tests/unit_tests/test_config.py::test_function_name
+poetry run pytest tests/unit_tests/test_settings.py::test_function_name
+
+# Configure (all settings come from the environment)
+cp .env.example .env
 
 # Run application
-poetry run python src/polyglot_pigeon/main.py -c config.yaml [-v]
+poetry run python src/polyglot_pigeon/main.py [--daemon | --run-once]
 ```
 
 ## Architecture
@@ -126,34 +129,37 @@ The project follows a **simple modules pattern** - code is organized by feature/
 
 ```
 src/polyglot_pigeon/
-├── mail/            # Email handling (IMAP reading, SMTP sending)
-│   ├── __init__.py  # Note: named 'mail' to avoid collision with stdlib 'email'
-│   └── reader.py    # EmailReader class
-├── llm/             # LLM API integrations
-│   ├── __init__.py
-│   ├── client.py    # LLMClient ABC + Claude/OpenAI/Perplexity clients
-│   └── models.py    # LLMMessage, LLMResponse models
-├── scheduler/       # Email processing scheduler
-│   ├── __init__.py
-│   ├── scheduler.py # EmailScheduler class
-│   └── pipeline.py  # Pipeline ABC + processing implementations
-├── models/          # Pydantic data models
-│   ├── models.py    # Base models (MyBaseModel, Email)
-│   └── configurations.py  # Config models
-├── config.py        # ConfigLoader singleton
-└── main.py          # CLI entry point
+├── shared/          # Depends on nothing else in the project
+│   ├── config/      # Env-based settings (pydantic-settings)
+│   │   ├── base.py         # Environment, DatabaseSettings, ServiceSettings
+│   │   ├── services.py     # Per-service settings + credential blocks
+│   │   └── single_tenant.py  # TEMPORARY: the one dev user, bridge to Config
+│   ├── db/          # SQLAlchemy Base, engine, session, custom types
+│   └── models/      # Pydantic data models
+│       ├── models.py          # MyBaseModel, Email
+│       └── configurations.py  # Legacy Config models
+├── content/         # LLM clients and prompts (controller-only)
+│   ├── llm/         # LLMClient ABC + Claude/OpenAI/Perplexity clients
+│   └── prompts/     # PromptManager
+├── services/        # One package per process; must not import each other
+│   ├── ingest/      # EmailReader (IMAP), cleaner, chunker
+│   ├── controller/  # LLM pipeline orchestration
+│   ├── courier/     # EmailSender (SMTP)
+│   └── bot/         # Telegram interaction surface
+├── scheduler/       # Single-tenant monolith: EmailScheduler + Pipeline
+└── main.py          # CLI entry point for the monolith
 ```
 
 **Core components:**
-- **config.py** - Singleton `ConfigLoader` for YAML configuration with caching and reload
-- **models/models.py** - `MyBaseModel` with custom enum parsing (case-insensitive) and serialization; `Email` model for email data
-- **models/configurations.py** - All config dataclasses: `SourceEmailConfig`, `TargetEmailConfig`, `LLMConfig`, `LanguageConfig`, `ScheduleConfig`, `LoggingConfig`
-- **mail/reader.py** - `EmailReader` class for IMAP operations (fetch, mark as read, add labels)
-- **llm/client.py** - `LLMClient` ABC with `ClaudeClient`, `OpenAIClient`, `PerplexityClient` implementations
+- **shared/config/** - `pydantic-settings` classes read at process start and injected. There is **no** global settings accessor; if you find yourself wanting `get_settings()`, pass the object down instead
+- **shared/models/models.py** - `MyBaseModel` with custom enum parsing (case-insensitive) and serialization; `Email` model for email data
+- **shared/models/configurations.py** - Legacy `Config` models: `SourceEmailConfig`, `TargetEmailConfig`, `LLMConfig`, `LanguageConfig`, `ScheduleConfig`, `LoggingConfig`
+- **services/ingest/reader.py** - `EmailReader` class for IMAP operations (fetch, mark as read, add labels)
+- **content/llm/client.py** - `LLMClient` ABC with `ClaudeClient`, `OpenAIClient`, `PerplexityClient` implementations
 - **scheduler/scheduler.py** - `EmailScheduler` for cron-like scheduled email processing
 - **scheduler/pipeline.py** - `Pipeline` ABC for email processing workflows
 
-**Configuration:** Copy `src/polyglot_pigeon/config.example.yaml` to `config.yaml` (gitignored) for local development.
+**Configuration:** All settings come from the environment. Copy `.env.example` to `.env` (gitignored) for local development; `.env.example` is the complete list of variables. Credentials are `SecretStr`, and each service's settings class declares only what that service needs.
 
 ## Code Style
 

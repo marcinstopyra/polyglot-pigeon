@@ -64,10 +64,10 @@ flowchart TD
     K --> L --> M --> N
     N -.->|Next cycle| B
 
-    subgraph Config["⚙️ Configuration"]
-        Q[known_language]
-        R[target_language]
-        S[target_language_level]
+    subgraph Config["⚙️ Configuration (environment)"]
+        Q[USER_KNOWN_LANGUAGE]
+        R[USER_TARGET_LANGUAGE]
+        S[USER_LANGUAGE_LEVEL]
         T[IMAP/SMTP credentials]
         U[Schedule settings]
     end
@@ -97,11 +97,11 @@ Gmail requires an app password when IMAP is accessed by a third-party app:
 1. Make sure 2-Step Verification is enabled on the account (required for app passwords)
 2. Go to **Google Account → Security → 2-Step Verification → App passwords**
 3. Choose *Mail* and *Other (custom name)*, enter `PolyglotPigeon`, and click **Generate**
-4. Copy the 16-character password — this goes into `source_email.app_password` in your config
+4. Copy the 16-character password — this goes into `IMAP_PASSWORD` in your `.env`
 
 ### Subscribe newsletters to the source inbox
 
-Forward or directly subscribe your chosen newsletters to the dedicated Gmail address. The app fetches all unread emails from the last 24 hours (configurable via `source_email.fetch_days`) and marks them as read after processing.
+Forward or directly subscribe your chosen newsletters to the dedicated Gmail address. The app fetches all unread emails from the last 24 hours (configurable via `IMAP_FETCH_DAYS`) and marks them as read after processing.
 
 #### Choosing good source newsletters
 
@@ -117,33 +117,55 @@ Good examples: [Semafor Flagship](https://www.semafor.com/newsletters/flagship),
 
 ### App password for the delivery (target) account
 
-If you are sending the digest to a Gmail address via Gmail SMTP, you need a separate app password for that account as well, following the same steps above. That password goes into `target_email.smtp_password`.
+If you are sending the digest to a Gmail address via Gmail SMTP, you need a separate app password for that account as well, following the same steps above. That password goes into `SMTP_PASSWORD`.
 
 
 ## Configuration
 
-Copy the example config and fill in your credentials:
+All configuration comes from the environment. Copy the example file and fill in
+your credentials:
 
 ```bash
-cp src/polyglot_pigeon/config.example.yaml config.yaml
+cp .env.example .env
 ```
 
-The `config.yaml` file is gitignored. See `config.example.yaml` for all available options with comments.
+`.env` is gitignored. `.env.example` lists every variable the stack reads, with
+defaults, and is the single place to look for what a fresh clone needs — the
+application and `docker-compose.yml` both read it.
+
+Anything without a default is required, and a service that starts without one
+fails immediately, naming the variable:
+
+```
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for ImapSettings
+IMAP_ADDRESS
+  Field required
+IMAP_PASSWORD
+  Field required
+```
+
+Each service reads only the variables it needs: `ingest` never sees
+`LLM_API_KEY`, and `controller` never sees `IMAP_PASSWORD`.
 
 ### Supported LLM providers
 
-| Provider | `provider` field | Notes |
+| Provider | `LLM_PROVIDER` | Notes |
 |---|---|---|
-| OpenAI | *(omit)* | Default; set `api_key` and `model` (NOT YET TESTED) |
-| Anthropic Claude | `claude` | Native SDK; set `api_key` and `model` |
-| Perplexity | *(omit)* | OpenAI-compatible; set `url` to `https://api.perplexity.ai` (NOT YET TESTED)|
-| Ollama (local) | *(omit)* | OpenAI-compatible; set `url` to `http://localhost:11434/v1` (NOT YET TESTED) | 
+| OpenAI | *(omit)* | Default; set `LLM_API_KEY` and `LLM_MODEL` (NOT YET TESTED) |
+| Anthropic Claude | `claude` | Native SDK; set `LLM_API_KEY` and `LLM_MODEL` |
+| Perplexity | *(omit)* | OpenAI-compatible; set `LLM_URL` to `https://api.perplexity.ai` (NOT YET TESTED)|
+| Ollama (local) | *(omit)* | OpenAI-compatible; set `LLM_URL` to `http://localhost:11434/v1` (NOT YET TESTED) |
 
 ### Supported languages
 
-`known` and `target` accept: `english`, `german`, `russian`, `italian`, `spanish`, `turkish`, `polish`
+`USER_KNOWN_LANGUAGE` and `USER_TARGET_LANGUAGE` accept: `english`, `german`,
+`russian`, `italian`, `spanish`, `turkish`, `polish`
 
-`level` accepts CEFR levels: `a1`, `a2`, `b1`, `b2`, `c1`, `c2`
+`USER_LANGUAGE_LEVEL` accepts CEFR levels: `a1`, `a2`, `b1`, `b2`, `c1`, `c2`
+
+> The `USER_*` variables are a temporary stand-in for a single user. They move
+> to `users` and `subscriptions` rows once those tables exist (PP-09), and the
+> bot takes over onboarding (PP-23).
 
 
 ## Database (for developers)
@@ -156,9 +178,10 @@ make db-up    # starts a MySQL 8 container (docker compose up -d db)
 make migrate  # applies migrations (alembic upgrade head)
 ```
 
-Connection settings are read from environment variables (all optional,
-defaulting to match `docker-compose.yml`): `DB_HOST`, `DB_PORT`, `DB_USER`,
-`DB_PASSWORD`, `DB_NAME`, `DB_CHARSET`.
+Connection settings are read from `DB_HOST`, `DB_PORT`, `DB_USER`,
+`DB_PASSWORD`, `DB_NAME` and `DB_CHARSET` — all optional in development, where
+they default to match `docker-compose.yml`. Set `ENVIRONMENT=production` and
+`DB_PASSWORD` must be supplied explicitly; the development default is refused.
 
 ## Running
 
@@ -168,7 +191,7 @@ Install dependencies and run once:
 
 ```bash
 poetry install
-poetry run python src/polyglot_pigeon/main.py -c config.yaml --run-once
+poetry run python src/polyglot_pigeon/main.py --run-once
 ```
 
 This fetches all unread newsletters, builds a digest, sends it, and exits. Useful for testing your setup or triggering a manual run.
@@ -179,17 +202,17 @@ This fetches all unread newsletters, builds a digest, sends it, and exits. Usefu
 
 ```bash
 # Dry run — save the digest as HTML/text files instead of sending
-poetry run python utilities/run_pipeline.py -c config.yaml --dry-run --output-dir ./output
+poetry run python utilities/run_pipeline.py --dry-run --output-dir ./output
 
 # Fetch the last 3 days and send the result for real
-poetry run python utilities/run_pipeline.py -c config.yaml --fetch-days 3
+poetry run python utilities/run_pipeline.py --fetch-days 3
 ```
 
-The script connects to your source inbox, lists the fetched emails, lets you pick which ones to include in the batch (by number or `all`), then runs the pipeline. With `--dry-run` the digest is saved locally; without it the digest is sent to the address configured in `target_email`.
+The script connects to your source inbox, lists the fetched emails, lets you pick which ones to include in the batch (by number or `all`), then runs the pipeline. With `--dry-run` the digest is saved locally; without it the digest is sent to `USER_TARGET_EMAIL`.
 
 ### Daemon mode with Docker
 
-The recommended way to run PolyglotPigeon continuously is with Docker. The container runs in daemon mode and processes emails on the schedule configured in `config.yaml`.
+The recommended way to run PolyglotPigeon continuously is with Docker. The container runs in daemon mode and processes emails on the schedule set by `USER_SEND_TIME` and `USER_TIMEZONE`.
 
 **Using the pre-built image (recommended):**
 
@@ -201,7 +224,7 @@ docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml logs -f
 ```
 
-`docker-compose.prod.yml` mounts your local `config.yaml` into the container (credentials are never baked into the image) and persists logs to a `./logs` directory.
+`docker-compose.prod.yml` passes your local `.env` into the container (credentials are never baked into the image) and persists logs to a `./logs` directory.
 
 **Building locally from source:**
 

@@ -162,14 +162,16 @@ class TestEmailScheduler:
         assert scheduler._pipeline_factory() is mock_pipeline
         assert scheduler._running is False
 
-    def test_init_with_defaults(self, mock_config):
-        with patch(
-            "polyglot_pigeon.scheduler.scheduler.get_config", return_value=mock_config
-        ):
-            scheduler = EmailScheduler()
+    def test_default_pipeline_factory(self, mock_config):
+        scheduler = EmailScheduler(config=mock_config)
 
-            assert scheduler.config == mock_config
-            assert scheduler._pipeline_factory is PlaceholderPipeline
+        assert scheduler.config == mock_config
+        assert scheduler._pipeline_factory is PlaceholderPipeline
+
+    def test_config_is_required(self):
+        """No global to fall back on: the caller must supply the config."""
+        with pytest.raises(TypeError):
+            EmailScheduler()
 
     def test_get_timezone(self, mock_config):
         scheduler = EmailScheduler(config=mock_config)
