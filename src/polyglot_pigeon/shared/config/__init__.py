@@ -2,6 +2,7 @@ from polyglot_pigeon.shared.config.base import (
     ENV_FILE,
     DatabaseSettings,
     Environment,
+    MissingSettingsError,
     ServiceSettings,
 )
 from polyglot_pigeon.shared.config.services import (
@@ -30,6 +31,7 @@ __all__ = [
     "ImapSettings",
     "IngestSettings",
     "LlmSettings",
+    "MissingSettingsError",
     "PipelineSettings",
     "ServiceSettings",
     "SingleTenantSettings",

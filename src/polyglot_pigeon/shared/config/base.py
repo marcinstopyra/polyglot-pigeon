@@ -6,11 +6,14 @@ process builds its settings object once in `main()` and passes it down. The
 `ConfigLoader` singleton this replaced was reachable from anywhere, which is
 what made a single tenant's configuration into a global.
 
-Env variable names are spelled out as explicit `validation_alias` values rather
-than derived from an `env_prefix`. Two reasons: the name in `.env.example` is
-greppable back to the field that reads it, and a missing required variable
-produces a `ValidationError` whose location is the variable an operator has to
-set (`IMAP_PASSWORD`), not an internal field name (`password`).
+Env variable names are derived from the field name and the class's `env_prefix`:
+`DatabaseSettings.user` reads `DB_USER`. The mapping is mechanical, so the
+prefix on the class is the only thing to keep in step with `.env.example` — and
+a test asserts the two agree, so a new field cannot land undocumented.
+
+What a prefix does not give you is a good failure. pydantic reports a missing
+field by its field name (`password`), which is not what an operator sets. The
+`MissingSettingsError` hook below restores that, reporting `IMAP_PASSWORD`.
 """
 
 from enum import Enum
@@ -18,10 +21,20 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = ".env"
+
+
+class MissingSettingsError(RuntimeError):
+    """A required environment variable was not set.
+
+    Raised in place of pydantic's `ValidationError` for missing values only, so
+    that the message names variables rather than fields. Every other validation
+    failure — a non-numeric port, an unknown language — still surfaces as a
+    `ValidationError` with pydantic's own diagnostics.
+    """
 
 
 class Environment(str, Enum):
@@ -51,6 +64,34 @@ class _EnvSettings(BaseSettings):
         extra="ignore",
     )
 
+    def __init__(self, **kwargs: Any) -> None:
+        """Report missing variables by the name an operator has to set.
+
+        pydantic locates a missing field by its field name, so an unset
+        `IMAP_PASSWORD` is reported as `password` — accurate inside the model,
+        useless in a deployment. Rebuilding the name from the prefix turns the
+        failure into an instruction.
+
+        A nested block raises this from inside its own `default_factory`, which
+        propagates through the parent untouched, so the message names the block
+        that actually failed.
+        """
+        try:
+            super().__init__(**kwargs)
+        except ValidationError as exc:
+            prefix = str(self.model_config.get("env_prefix", "")).upper()
+            missing = [
+                prefix + "_".join(str(part) for part in error["loc"]).upper()
+                for error in exc.errors()
+                if error["type"] == "missing"
+            ]
+            if missing:
+                raise MissingSettingsError(
+                    f"{type(self).__name__}: missing required environment "
+                    f"variable(s): {', '.join(missing)}"
+                ) from None
+            raise
+
 
 def nested(settings_cls: type[_EnvSettings]) -> Any:
     """Declare a field holding a nested settings block that reads its own vars.
@@ -74,14 +115,16 @@ class DatabaseSettings(_EnvSettings):
     `migrations/env.py` builds Alembic's `sqlalchemy.url` from this class.
     """
 
-    host: str = Field(default="localhost", validation_alias="DB_HOST")
-    port: int = Field(default=3306, validation_alias="DB_PORT")
-    user: str = Field(default="polyglot", validation_alias="DB_USER")
-    password: SecretStr = Field(
-        default=SecretStr("polyglot"), validation_alias="DB_PASSWORD"
-    )
-    name: str = Field(default="polyglot", validation_alias="DB_NAME")
-    charset: str = Field(default="utf8mb4", validation_alias="DB_CHARSET")
+    # Merged with `_EnvSettings.model_config`, not replacing it: pydantic
+    # combines `model_config` across the MRO, so `env_file` and `extra` carry.
+    model_config = SettingsConfigDict(env_prefix="DB_")
+
+    host: str = "localhost"
+    port: int = 3306
+    user: str = "polyglot"
+    password: SecretStr = SecretStr("polyglot")
+    name: str = "polyglot"
+    charset: str = "utf8mb4"
 
     @property
     def url(self) -> str:
@@ -94,13 +137,15 @@ class DatabaseSettings(_EnvSettings):
 
 
 class ServiceSettings(_EnvSettings):
-    """The settings every process needs, whatever it does."""
+    """The settings every process needs, whatever it does.
 
-    environment: Environment = Field(
-        default=Environment.DEVELOPMENT, validation_alias="ENVIRONMENT"
-    )
-    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
-    log_file: Path | None = Field(default=None, validation_alias="LOG_FILE")
+    No `env_prefix`: these three already derive to the names they should have —
+    `ENVIRONMENT`, `LOG_LEVEL`, `LOG_FILE`.
+    """
+
+    environment: Environment = Environment.DEVELOPMENT
+    log_level: str = "INFO"
+    log_file: Path | None = None
     database: DatabaseSettings = nested(DatabaseSettings)
 
     @model_validator(mode="after")

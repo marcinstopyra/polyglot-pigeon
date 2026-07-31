@@ -7,6 +7,8 @@ running them.
 """
 
 import logging
+import pathlib
+import re
 
 import pytest
 from pydantic import ValidationError
@@ -18,10 +20,12 @@ from polyglot_pigeon.shared.config import (
     DatabaseSettings,
     Environment,
     IngestSettings,
+    MissingSettingsError,
     ServiceSettings,
     SingleTenantSettings,
 )
 from polyglot_pigeon.shared.models.configurations import Language, LanguageLevel
+from tests.unit_tests.conftest import env_aliases
 
 IMAP_ENV = {
     "IMAP_ADDRESS": "source@example.com",
@@ -70,20 +74,25 @@ class TestMissingRequiredVariables:
     def test_names_the_missing_variable(self, clean_env, settings_cls, env, missing):
         set_env(clean_env, env)
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(MissingSettingsError) as exc_info:
             settings_cls()
 
         assert missing in str(exc_info.value)
 
     def test_error_names_the_env_var_not_the_field(self, clean_env):
-        """`IMAP_PASSWORD` is actionable for an operator; `password` is not."""
+        """`IMAP_PASSWORD` is actionable for an operator; `password` is not.
+
+        `env_prefix` alone reports the bare field name, so this is the
+        assertion that keeps `MissingSettingsError` earning its place.
+        """
         set_env(clean_env, {"IMAP_ADDRESS": "a@b.com"})
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(MissingSettingsError) as exc_info:
             IngestSettings()
 
         message = str(exc_info.value)
         assert "IMAP_PASSWORD" in message
+        assert "password" not in message.replace("IMAP_PASSWORD", "")
 
     def test_complete_environment_constructs(self, clean_env):
         set_env(clean_env, IMAP_ENV)
@@ -223,6 +232,25 @@ class TestDatabaseSettings:
         assert "p%40ss%3Aw%2Frd" in settings.url
         assert "p@ss:w/rd" not in settings.url
 
+    def test_bare_user_env_var_does_not_leak_into_db_user(self, clean_env):
+        """Regression: `DB_USER` was being read from `USER`.
+
+        `populate_by_name` made pydantic-settings match a field by name as well
+        as by prefix, so `user` matched `USER` — the Unix username, set in
+        essentially every shell and container. The connection string came out
+        as the logged-in operator instead of `polyglot`, and the resulting
+        `Access denied` pointed at MySQL rather than at the config.
+
+        `clean_env` deliberately does not strip bare `USER`, so this asserts
+        against the real conditions the bug appeared under.
+        """
+        clean_env.setenv("USER", "whoever-is-logged-in")
+
+        settings = DatabaseSettings()
+
+        assert settings.user == "polyglot"
+        assert "whoever-is-logged-in" not in settings.url
+
     def test_password_is_not_rendered(self, clean_env):
         set_env(clean_env, {"DB_PASSWORD": "s3cr3t"})
 
@@ -255,6 +283,36 @@ class TestDatabaseSettings:
 
         assert settings.environment is Environment.DEVELOPMENT
         assert settings.database.password.get_secret_value() == "polyglot"
+
+
+# ── .env.example stays in step with the code ──────────────────────────────────
+
+
+def test_env_example_documents_every_variable():
+    """`.env.example` is the list a fresh clone starts from — so it must be complete.
+
+    With `env_prefix` the variable names are derived, not written down, which
+    makes them easy to add without documenting. This closes that gap: every
+    variable the settings classes read has a line in `.env.example`, and every
+    line in `.env.example` is read by something.
+    """
+    declared: set[str] = set()
+    for settings_cls in (
+        BotSettings,
+        ControllerSettings,
+        CourierSettings,
+        IngestSettings,
+        SingleTenantSettings,
+    ):
+        declared |= env_aliases(settings_cls)
+
+    example = pathlib.Path(__file__).parents[2] / ".env.example"
+    documented = set(re.findall(r"^#?\s*([A-Z][A-Z0-9_]+)=", example.read_text(), re.M))
+
+    assert declared - documented == set(), "read by the code, missing from .env.example"
+    # DB_ROOT_PASSWORD is consumed by docker-compose for the MySQL container
+    # itself, never by the application.
+    assert documented - declared == {"DB_ROOT_PASSWORD"}
 
 
 # ── No module-level settings object ───────────────────────────────────────────
@@ -292,13 +350,16 @@ class TestSingleTenantSettings:
         assert settings.user.language_level is LanguageLevel.C1
 
     def test_unknown_language_is_rejected(self, clean_env):
+        """A bad value is not a missing one: pydantic reports it, unwrapped."""
         set_env(clean_env, IMAP_ENV, SMTP_ENV, LLM_ENV, USER_ENV)
         clean_env.setenv("USER_TARGET_LANGUAGE", "klingon")
 
         with pytest.raises(ValidationError) as exc_info:
             SingleTenantSettings()
 
-        assert "USER_TARGET_LANGUAGE" in str(exc_info.value)
+        message = str(exc_info.value)
+        assert "target_language" in message
+        assert "klingon" in message
 
     def test_to_config_unwraps_secrets_for_the_clients(self, settings):
         config = settings.to_config()

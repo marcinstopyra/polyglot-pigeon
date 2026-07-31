@@ -37,16 +37,22 @@ def db_engine(db_settings):
 def env_aliases(settings_cls: type[BaseSettings]) -> set[str]:
     """Every environment variable a settings class (and its nested ones) reads.
 
-    Derived from the model rather than hard-coded, so a new field cannot leak
-    the developer's own environment into a test by being forgotten here.
+    Derived from the model the same way pydantic-settings derives it — the
+    class's `env_prefix` plus the field name — rather than hard-coded, so a new
+    field cannot leak the developer's own environment into a test by being
+    forgotten here. `test_settings.py` uses this to assert `.env.example` is
+    complete.
     """
+    prefix = str(settings_cls.model_config.get("env_prefix", "")).upper()
     names: set[str] = set()
-    for field in settings_cls.model_fields.values():
-        if isinstance(field.validation_alias, str):
-            names.add(field.validation_alias)
+    for field_name, field in settings_cls.model_fields.items():
         annotation = field.annotation
         if isinstance(annotation, type) and issubclass(annotation, BaseSettings):
+            # A nested block reads its own variables under its own prefix; the
+            # parent's placeholder alias for it is not a real variable.
             names |= env_aliases(annotation)
+        else:
+            names.add(prefix + field_name.upper())
     return names
 
 

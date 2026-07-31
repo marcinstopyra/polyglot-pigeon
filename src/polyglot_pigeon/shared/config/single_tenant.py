@@ -22,7 +22,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, TypeVar
 
-from pydantic import Field, field_validator
+from pydantic import field_validator
+from pydantic_settings import SettingsConfigDict
 
 from polyglot_pigeon.shared.config.base import ServiceSettings, _EnvSettings, nested
 from polyglot_pigeon.shared.config.services import (
@@ -63,15 +64,15 @@ def parse_enum_by_name(value: Any, enum_type: type[E]) -> Any:
 class SingleTenantUserSettings(_EnvSettings):
     """The one user's preferences. Becomes `users` + `subscriptions` in PP-09."""
 
-    target_email: str = Field(validation_alias="USER_TARGET_EMAIL")
-    known_language: Language = Field(validation_alias="USER_KNOWN_LANGUAGE")
-    target_language: Language = Field(validation_alias="USER_TARGET_LANGUAGE")
-    language_level: LanguageLevel = Field(validation_alias="USER_LANGUAGE_LEVEL")
-    timezone: str = Field(default="UTC", validation_alias="USER_TIMEZONE")
-    send_time: str = Field(default="12:00", validation_alias="USER_SEND_TIME")
-    schedule_enabled: bool = Field(
-        default=True, validation_alias="USER_SCHEDULE_ENABLED"
-    )
+    model_config = SettingsConfigDict(env_prefix="USER_")
+
+    target_email: str
+    known_language: Language
+    target_language: Language
+    language_level: LanguageLevel
+    timezone: str = "UTC"
+    send_time: str = "12:00"
+    schedule_enabled: bool = True
 
     @field_validator("known_language", "target_language", mode="before")
     @classmethod
@@ -87,21 +88,15 @@ class SingleTenantUserSettings(_EnvSettings):
 class PipelineSettings(_EnvSettings):
     """Digest-shaping knobs that are neither credentials nor user preferences."""
 
-    max_articles_in_final_email: int = Field(
-        default=7, validation_alias="PIPELINE_MAX_ARTICLES"
-    )
-    min_chunk_chars: int = Field(
-        default=80, validation_alias="PIPELINE_MIN_CHUNK_CHARS"
-    )
-    max_chunks_per_email: int = Field(
-        default=60, validation_alias="PIPELINE_MAX_CHUNKS_PER_EMAIL"
-    )
-    show_cost_in_footer: bool = Field(
-        default=True, validation_alias="PIPELINE_SHOW_COST_IN_FOOTER"
-    )
-    prompts_path: Path = Field(
-        default=Path("/app/prompts.yaml"), validation_alias="PIPELINE_PROMPTS_PATH"
-    )
+    model_config = SettingsConfigDict(env_prefix="PIPELINE_")
+
+    # Shorter than the legacy `PipelineConfig.max_articles_in_final_email` it
+    # feeds, so the variable stays `PIPELINE_MAX_ARTICLES` without an alias.
+    max_articles: int = 7
+    min_chunk_chars: int = 80
+    max_chunks_per_email: int = 60
+    show_cost_in_footer: bool = True
+    prompts_path: Path = Path("/app/prompts.yaml")
 
 
 class SingleTenantSettings(ServiceSettings):
@@ -166,7 +161,7 @@ class SingleTenantSettings(ServiceSettings):
             ),
             logging=LoggingConfig(level=self.log_level, file=self.log_file),
             pipeline=PipelineConfig(
-                max_articles_in_final_email=self.pipeline.max_articles_in_final_email,
+                max_articles_in_final_email=self.pipeline.max_articles,
                 min_chunk_chars=self.pipeline.min_chunk_chars,
                 max_chunks_per_email=self.pipeline.max_chunks_per_email,
                 show_cost_in_footer=self.pipeline.show_cost_in_footer,
