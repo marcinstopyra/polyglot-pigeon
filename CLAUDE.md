@@ -50,6 +50,7 @@ This file should grow over time as we work together.
 
 - **Prefer Pydantic models or dataclasses for complex data** — avoid tuples or plain dicts when passing structured data between functions. Use `MyBaseModel` (Pydantic) when validation or serialization is needed; use `@dataclass` for lightweight internal structures.
 - **Always import at the top of the file** — never place imports inside functions or methods unless there is a concrete circular import that cannot be resolved otherwise. Lazy imports inside functions make dependencies invisible and harder to trace.
+- **Never mention untracked or gitignored content in anything that reaches GitHub** — this is a public repository. PR titles and descriptions, issue and PR comments, commit messages, and code comments must not name or describe `local_files/`, its contents, `config.yaml`, `.env`, log files, or anything else excluded by `.gitignore`. Their existence, filenames, and contents all stay private. Use them freely as local context; just do not write about them anywhere they would be published. When a question genuinely depends on such a file, ask it in the chat instead, or phrase it generically ("the existing deployment config") without filenames.
 
 ## Project Overview
 
