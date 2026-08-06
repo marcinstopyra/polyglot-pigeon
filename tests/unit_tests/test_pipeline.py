@@ -309,8 +309,8 @@ class TestParseJsonWithRetry:
 
 def _mock_config():
     config = MagicMock()
-    config.language.known.name = "english"
-    config.language.target.name = "german"
+    config.language.known = "en"
+    config.language.target = "de"
     config.language.level.name = "B1"
     config.schedule.timezone = "UTC"
     config.pipeline.max_articles_in_final_email = 7

@@ -28,16 +28,6 @@ class LLMConfig(MyBaseModel):
     output_cost_per_million: float | None = None  # USD per 1M output tokens
 
 
-class Language(Enum):
-    ENGLISH = auto()
-    GERMAN = auto()
-    RUSSIAN = auto()
-    ITALIAN = auto()
-    SPANISH = auto()
-    TURKISH = auto()
-    POLISH = auto()
-
-
 class LanguageLevel(Enum):
     A1 = auto()
     A2 = auto()
@@ -47,9 +37,36 @@ class LanguageLevel(Enum):
     C2 = auto()
 
 
+class Channel(Enum):
+    """Delivery channel. Adding one means writing a delivery implementation,
+    so unlike `language` it can never be data-only (architecture doc §6)."""
+
+    EMAIL = auto()
+    TELEGRAM = auto()
+
+
+# The old `Language` enum's members, by the `languages.code` row that
+# replaces each one (PP-05 — see `migrations/versions/4d3179cd3311_*`, the
+# source of truth this duplicates). `LanguageConfig.known` / `.target` are now
+# plain codes, but the legacy single-tenant `pipeline.py` still needs a
+# display name for its LLM prompts and has no database session to look one up
+# with — `SingleTenantSettings` is built once at startup, before any query
+# runs. Delete this alongside `single_tenant.py` when PP-09 lands and the
+# pipeline reads `languages` for real.
+LANGUAGE_DISPLAY_NAMES: dict[str, str] = {
+    "en": "English",
+    "de": "German",
+    "ru": "Russian",
+    "it": "Italian",
+    "es": "Spanish",
+    "tr": "Turkish",
+    "pl": "Polish",
+}
+
+
 class LanguageConfig(MyBaseModel):
-    known: Language
-    target: Language
+    known: str
+    target: str
     level: LanguageLevel
 
 

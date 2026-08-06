@@ -18,6 +18,7 @@ takes, so the monolith keeps running unchanged while the settings mechanism
 underneath it changes.
 """
 
+import re
 from enum import Enum
 from pathlib import Path
 from typing import Any, TypeVar
@@ -33,7 +34,6 @@ from polyglot_pigeon.shared.config.services import (
 )
 from polyglot_pigeon.shared.models.configurations import (
     Config,
-    Language,
     LanguageConfig,
     LanguageLevel,
     LLMConfig,
@@ -45,6 +45,13 @@ from polyglot_pigeon.shared.models.configurations import (
 )
 
 E = TypeVar("E", bound=Enum)
+
+# ISO 639-1, optionally with a region suffix ("es", "pt-br"). A format check
+# only — whether the code names a language this deployment actually supports
+# is enforced by the `languages` table (PP-05), which this object has no
+# session to query: `SingleTenantUserSettings` is built once at startup,
+# before any database connection exists.
+_LANGUAGE_CODE = re.compile(r"^[a-z]{2}(-[a-z]{2})?$")
 
 
 def parse_enum_by_name(value: Any, enum_type: type[E]) -> Any:
@@ -67,17 +74,23 @@ class SingleTenantUserSettings(_EnvSettings):
     model_config = SettingsConfigDict(env_prefix="USER_")
 
     target_email: str
-    known_language: Language
-    target_language: Language
+    known_language: str
+    target_language: str
     language_level: LanguageLevel
     timezone: str = "UTC"
     send_time: str = "12:00"
     schedule_enabled: bool = True
 
-    @field_validator("known_language", "target_language", mode="before")
+    @field_validator("known_language", "target_language", mode="after")
     @classmethod
-    def _parse_language(cls, value: Any) -> Any:
-        return parse_enum_by_name(value, Language)
+    def _validate_language_code(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not _LANGUAGE_CODE.fullmatch(normalized):
+            raise ValueError(
+                f"{value!r} is not a valid language code — expected an "
+                'ISO 639-1 code, optionally with a region suffix ("es", "pt-br")'
+            )
+        return normalized
 
     @field_validator("language_level", mode="before")
     @classmethod

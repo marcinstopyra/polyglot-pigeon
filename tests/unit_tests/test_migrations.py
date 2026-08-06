@@ -1,25 +1,12 @@
-from pathlib import Path
-
 import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.autogenerate import compare_metadata, render_python_code
-from alembic.config import Config as AlembicConfig
 from alembic.migration import MigrationContext
 from alembic.operations import ops
 
 from polyglot_pigeon.shared.db.base import Base
 from polyglot_pigeon.shared.db.types import UtcDateTime
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-@pytest.fixture
-def alembic_config(db_settings) -> AlembicConfig:
-    cfg = AlembicConfig(str(REPO_ROOT / "alembic.ini"))
-    cfg.set_main_option("script_location", str(REPO_ROOT / "migrations"))
-    cfg.set_main_option("sqlalchemy.url", db_settings.url)
-    return cfg
 
 
 @pytest.fixture(autouse=True)
