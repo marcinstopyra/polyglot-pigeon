@@ -1,14 +1,23 @@
 # PolyglotPigeon — Target Architecture
 
-> **Status: proposal / draft.** Captures the decisions from the restructuring
-> discussion. Not yet implemented. Open questions are listed at the end.
+> **Status: proposal / draft**, with pieces of it already landed. Captures the
+> decisions from the restructuring discussion. Open questions are listed at the
+> end.
+>
+> **Implemented so far:** MySQL 8 + SQLAlchemy + Alembic (§8, PP-02); the
+> `shared`/`content`/`services` layout with `import-linter` (§4, PP-03); the
+> `ConfigLoader` singleton replaced by env-based settings (§4, PP-04). Still a
+> single-tenant monolith — no `users`/`subscriptions` tables, no service split.
 
 ## 1. Why restructure
 
-Today PolyglotPigeon is a single-tenant process: one `config.yaml` holds one
-`LanguageConfig` and one `TargetEmailConfig`, reached globally through the
-`ConfigLoader` singleton (`get_config()` in `pipeline.py`, `scheduler.py`,
-`mock_bot.py`). There is no database and no concept of a user.
+Until recently PolyglotPigeon was a single-tenant process: one `config.yaml`
+held one `LanguageConfig` and one `TargetEmailConfig`, reached globally through
+the `ConfigLoader` singleton (`get_config()` in `pipeline.py`, `scheduler.py`,
+`mock_bot.py`). `ConfigLoader` is gone now (PP-04, see §4) — settings are
+env-based — but there is still no database concept of a user; the monolith
+still runs for exactly one, configured through env vars rather than a YAML
+file.
 
 Adding a Telegram bot forces three changes at once:
 
@@ -223,8 +232,17 @@ extra (§10). Cleaning and chunking are pure text manipulation and live in
 - **`pipeline.py` splits three ways.** `_extract_topics` and
   `_transform_articles` → `polyglot_pigeon/content` (controller); `send_target_email`
   → `courier`; chunking/cleaning → `ingest`.
-- **`ConfigLoader` singleton goes away.** Per-user settings move to database
-  rows; process settings move to env-based config.
+- ~~**`ConfigLoader` singleton goes away.**~~ **Done (PP-04).** Process
+  settings are `pydantic-settings` classes in `shared/config/` (`base.py`,
+  `services.py`), read once at startup and passed down — no
+  `get_settings()`. Per-user settings did **not** move to database rows yet:
+  they moved to env vars too, via `SingleTenantUserSettings` in
+  `shared/config/single_tenant.py`, a class explicitly named and documented as
+  a stand-in for the future `users`/`subscriptions` rows (PP-09). Its
+  `to_config()` assembles the legacy `Config` model so `pipeline.py` keeps
+  running unchanged in the meantime — the refactor below is still open. When
+  PP-09 lands, deleting `single_tenant.py` and its `USER_*` variables is meant
+  to be the whole migration.
 - **LLM calls switch to the async path.** `llm/client.py` already implements
   `complete_async` with `AsyncAnthropic` / `AsyncOpenAI` — but nothing calls
   it; `pipeline.py` uses the sync `complete()`. Wiring this up enables
@@ -1032,6 +1050,26 @@ migration.
   Entry points are `python -m polyglot_pigeon.services.<name>` rather than
   `[project.scripts]` — four fewer declarations to keep in sync, and no
   ambiguity about whether an installed or a working-tree copy is running.
+- **Env var names are derived from each class's `env_prefix`, not written out
+  per field** (§4, PP-04). `DatabaseSettings.user` reads `DB_USER` mechanically
+  rather than via an explicit `validation_alias="DB_USER"` on every field — one
+  thing to keep in step with `.env.example` instead of 44. A test asserts the
+  derived variable set matches `.env.example` exactly, so an undocumented
+  variable is a test failure, not a support ticket. *Rejected:*
+  `env_nested_delimiter="__"`, which would rename everything to
+  `DATABASE__USER` / `LLM__API_KEY` — breaking the `DB_*` names
+  `docker-compose.yml` and `alembic.ini` already depend on — and still would
+  not stop a field literally named `user` from matching bare `USER` on the
+  host. A small hook on the shared settings base rebuilds the prefixed name
+  (`DB_USER`, not `user`) for any missing-variable error, so pydantic's own
+  field-name-only message never reaches an operator.
+- **Per-user settings live in env vars for now, not database rows** (§4,
+  PP-04). Multi-tenancy (§1) is the harder, sequenced-later change; PP-04 only
+  had to retire `config.yaml`. Rather than half-build the `users` table to hold
+  one row, `SingleTenantUserSettings` reads `USER_*` variables and the
+  monolith's single deployment stays configured the way it always was —
+  per-deployment, not per-row. The bridge is deliberately named and scoped so
+  PP-09 replaces it outright rather than unwinding it piecemeal.
 
 ## 11. Open questions
 
