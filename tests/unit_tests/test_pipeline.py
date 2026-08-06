@@ -323,17 +323,15 @@ def _mock_config():
 class TestEmailProcessingPipelinePromptsPath:
     @patch("polyglot_pigeon.scheduler.pipeline.PromptManager")
     @patch("polyglot_pigeon.scheduler.pipeline.create_llm_client")
-    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
     def test_prompts_path_read_from_config(
-        self, mock_get_config, mock_llm_factory, mock_pm_cls, tmp_path
+        self, mock_llm_factory, mock_pm_cls, tmp_path
     ):
         config = _mock_config()
         prompts_file = tmp_path / "prompts.yaml"
         config.pipeline.prompts_path = prompts_file
-        mock_get_config.return_value = config
         mock_pm_cls.return_value.get.return_value = "prompt text"
 
-        pipeline = EmailProcessingPipeline()
+        pipeline = EmailProcessingPipeline(config)
 
         source = _make_source()
         article_id = uuid4()
@@ -381,9 +379,7 @@ def _make_topic_list_json(source: ChunkedSourceEmail, extra_uuid: bool = False) 
 
 class TestExtractTopics:
     def _make_pipeline(self) -> EmailProcessingPipeline:
-        with patch("polyglot_pigeon.scheduler.pipeline.get_config") as mock_cfg:
-            mock_cfg.return_value = _mock_config()
-            return EmailProcessingPipeline()
+        return EmailProcessingPipeline(_mock_config())
 
     def test_valid_response_returns_topics(self):
         pipeline = self._make_pipeline()
@@ -463,9 +459,7 @@ class TestExtractTopics:
 
 class TestCurateArticles:
     def _make_pipeline(self) -> EmailProcessingPipeline:
-        with patch("polyglot_pigeon.scheduler.pipeline.get_config") as mock_cfg:
-            mock_cfg.return_value = _mock_config()
-            return EmailProcessingPipeline()
+        return EmailProcessingPipeline(_mock_config())
 
     def _make_topics(self, n: int = 3) -> list[SourceArticleDescriptor]:
         return [
@@ -538,9 +532,7 @@ class TestCurateArticles:
 
 class TestReconstructContent:
     def _make_pipeline(self) -> EmailProcessingPipeline:
-        with patch("polyglot_pigeon.scheduler.pipeline.get_config") as mock_cfg:
-            mock_cfg.return_value = _mock_config()
-            return EmailProcessingPipeline()
+        return EmailProcessingPipeline(_mock_config())
 
     def test_concatenates_chunks_in_order(self):
         pipeline = self._make_pipeline()
@@ -614,10 +606,8 @@ class TestReconstructContent:
 class TestBuildDigestIntegration:
     """End-to-end build_digest with all LLM calls mocked via stage methods."""
 
-    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
-    def test_orchestrates_all_stages(self, mock_get_config):
-        mock_get_config.return_value = _mock_config()
-        pipeline = EmailProcessingPipeline()
+    def test_orchestrates_all_stages(self):
+        pipeline = EmailProcessingPipeline(_mock_config())
 
         source = _make_source()
         article_id = uuid4()
@@ -643,10 +633,8 @@ class TestBuildDigestIntegration:
         pipeline._reconstruct_content.assert_called_once()
         pipeline._transform_articles.assert_called_once()
 
-    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
-    def test_raises_if_no_chunks(self, mock_get_config):
-        mock_get_config.return_value = _mock_config()
-        pipeline = EmailProcessingPipeline()
+    def test_raises_if_no_chunks(self):
+        pipeline = EmailProcessingPipeline(_mock_config())
         pipeline._chunk_emails = MagicMock(return_value=[])
 
         with patch("polyglot_pigeon.scheduler.pipeline.PromptManager"):
@@ -654,10 +642,8 @@ class TestBuildDigestIntegration:
                 with pytest.raises(ValueError, match="chunking"):
                     pipeline.build_digest([MagicMock()])
 
-    @patch("polyglot_pigeon.scheduler.pipeline.get_config")
-    def test_raises_if_no_topics(self, mock_get_config):
-        mock_get_config.return_value = _mock_config()
-        pipeline = EmailProcessingPipeline()
+    def test_raises_if_no_topics(self):
+        pipeline = EmailProcessingPipeline(_mock_config())
         pipeline._chunk_emails = MagicMock(return_value=[_make_source()])
         pipeline._extract_topics = MagicMock(return_value=[])
 

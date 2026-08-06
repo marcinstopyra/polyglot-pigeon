@@ -3,9 +3,9 @@
 Test script to send emails using EmailSender.
 
 Usage:
-    python utilities/send_email.py -c config.yaml email.json
-    python utilities/send_email.py -c config.yaml email.json --dry-run
-    python utilities/send_email.py -c config.yaml email.json -v
+    python utilities/send_email.py email.json
+    python utilities/send_email.py email.json --dry-run
+    python utilities/send_email.py email.json -v
 
 Example email.json:
 {
@@ -28,7 +28,7 @@ from pydantic import BaseModel
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from polyglot_pigeon.shared.config import ConfigLoader
+from polyglot_pigeon.shared.config import SingleTenantSettings
 from polyglot_pigeon.services.courier import EmailSender
 
 
@@ -61,9 +61,6 @@ def main() -> None:
         description="Test script to send emails using EmailSender"
     )
     parser.add_argument(
-        "-c", "--config", required=True, help="Path to config.yaml file"
-    )
-    parser.add_argument(
         "email_json",
         help="Path to JSON file with email content (recipient, subject, body_text, body_html)",
     )
@@ -81,14 +78,7 @@ def main() -> None:
     args = parser.parse_args()
     setup_logging(args.verbose)
 
-    # Load config
-    config_path = Path(args.config)
-    if not config_path.exists():
-        print(f"Error: Config file not found: {config_path}")
-        sys.exit(1)
-
-    loader = ConfigLoader()
-    config = loader.load(config_path)
+    config = SingleTenantSettings().to_config()
 
     # Load email input
     email_json_path = Path(args.email_json)

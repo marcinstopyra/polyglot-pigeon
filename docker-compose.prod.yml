@@ -2,8 +2,10 @@ services:
   polyglot-pigeon:
     image: ghcr.io/marcinstopyra/polyglot-pigeon:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    env_file: .env
+    environment:
+      LOG_FILE: /app/logs/polyglot_pigeon.log
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
       - ./logs:/app/logs
-      # Optional: mount a prompt overrides file (path set via pipeline.prompts_path in config.yaml).
+      # Optional: mount a prompt overrides file (path set via PIPELINE_PROMPTS_PATH).
       # - ./prompts.yaml:/app/prompts.yaml:ro

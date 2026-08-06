@@ -76,7 +76,9 @@ class ScheduleConfig(MyBaseModel):
 
 class LoggingConfig(MyBaseModel):
     level: str = "INFO"
-    file: Path = Path("logs/polyglot_pigeon.log")
+    # None logs to the console only, which is the right default for a container.
+    # Set LOG_FILE to also write to disk.
+    file: Path | None = None
 
 
 class PipelineConfig(MyBaseModel):

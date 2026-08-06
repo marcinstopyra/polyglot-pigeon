@@ -2,10 +2,16 @@ services:
   polyglot-pigeon:
     build: .
     restart: unless-stopped
+    env_file: .env          # credentials never baked into image
+    environment:
+      DB_HOST: db
+      LOG_FILE: /app/logs/polyglot_pigeon.log
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
-      - ./config.yaml:/app/config.yaml:ro   # credentials never baked into image
-      - ./logs:/app/logs                    # persist logs on host
-      # Optional: mount a prompt overrides file (path set via pipeline.prompts_path in config.yaml).
+      - ./logs:/app/logs    # persist logs on host
+      # Optional: mount a prompt overrides file (path set via PIPELINE_PROMPTS_PATH).
       # - ./prompts.yaml:/app/prompts.yaml:ro
 
   db:

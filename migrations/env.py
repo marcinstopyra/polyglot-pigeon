@@ -3,8 +3,8 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from polyglot_pigeon.shared.config import DatabaseSettings
 from polyglot_pigeon.shared.db.base import Base
-from polyglot_pigeon.shared.db.settings import DatabaseSettings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -19,7 +19,7 @@ if config.config_file_name is not None:
 # `sqlalchemy.url` in alembic.ini is a placeholder overridden below with the
 # same environment-derived settings the application itself uses.
 target_metadata = Base.metadata
-config.set_main_option("sqlalchemy.url", DatabaseSettings.from_env().url)
+config.set_main_option("sqlalchemy.url", DatabaseSettings().url)
 
 # `user_module_prefix` is what makes autogenerate render `pp.UtcDateTime()`
 # instead of falling back to the type's raw DATETIME impl — see

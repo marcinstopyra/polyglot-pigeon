@@ -1,9 +1,10 @@
 import argparse
+import functools
 import logging
 from pathlib import Path
 
 from polyglot_pigeon.scheduler import EmailProcessingPipeline, EmailScheduler
-from polyglot_pigeon.shared.config import ConfigLoader, get_config
+from polyglot_pigeon.shared.config import SingleTenantSettings
 
 log = logging.getLogger(__name__)
 
@@ -31,13 +32,6 @@ def main() -> None:
         description="PolyglotPigeon - Transform newsletters into language learning content"
     )
     parser.add_argument(
-        "-c",
-        "--config",
-        type=Path,
-        required=True,
-        help="Path to the configuration file",
-    )
-    parser.add_argument(
         "--daemon",
         action="store_true",
         help="Run as a long-running daemon (scheduled processing)",
@@ -49,16 +43,22 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    config_loader = ConfigLoader()
-    config_loader.load(config_path=str(args.config))
-    config = get_config()
+    # Built here and nowhere else: every required variable is validated before
+    # the first IMAP connection or LLM call, so a missing credential is a
+    # startup failure naming the variable rather than an error hours later.
+    settings = SingleTenantSettings()
 
-    log_level = getattr(logging, config.logging.level.upper(), logging.INFO)
-    setup_logger(level=log_level, log_file=config.logging.file)
+    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    setup_logger(level=log_level, log_file=settings.log_file)
 
-    log.debug(f"Loaded config: {config}")
+    # Safe to log: every credential on a settings object is a SecretStr.
+    log.debug(f"Loaded settings: {settings!r}")
 
-    scheduler = EmailScheduler(config=config, pipeline_factory=EmailProcessingPipeline)
+    config = settings.to_config()
+    scheduler = EmailScheduler(
+        config=config,
+        pipeline_factory=functools.partial(EmailProcessingPipeline, config),
+    )
 
     if args.daemon:
         log.info("Starting in daemon mode")

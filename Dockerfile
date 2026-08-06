@@ -23,4 +23,6 @@ COPY src/ ./src/
 
 ENV PYTHONPATH=/app/src
 
-CMD ["python", "src/polyglot_pigeon/main.py", "-c", "/app/config.yaml", "--daemon"]
+# Configuration comes from the environment (see .env.example), not a mounted
+# file — there is no -c flag any more.
+CMD ["python", "src/polyglot_pigeon/main.py", "--daemon"]
