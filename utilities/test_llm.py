@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from polyglot_pigeon.content.llm import LLMMessage, MessageRole, create_llm_client
 from polyglot_pigeon.shared.config import ControllerSettings
-from polyglot_pigeon.shared.models.configurations import LLMConfig, LLMProvider
+from polyglot_pigeon.shared.models.configurations import LLMConfig
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -45,7 +45,7 @@ def get_config_from_args(args) -> LLMConfig:
 
         # Override with CLI args if provided
         if args.provider:
-            llm_config.provider = LLMProvider[args.provider.upper()]
+            llm_config.provider = args.provider
         if args.api_key:
             llm_config.api_key = args.api_key
         if args.model:
@@ -63,7 +63,7 @@ def get_config_from_args(args) -> LLMConfig:
         sys.exit(1)
 
     return LLMConfig(
-        provider=LLMProvider[args.provider.upper()],
+        provider=args.provider,
         api_key=args.api_key,
         model=args.model,
         max_tokens=args.max_tokens or 1024,
@@ -204,7 +204,7 @@ def main() -> None:
     # Build config
     llm_config = get_config_from_args(args)
 
-    print(f"Provider: {llm_config.provider.name}")
+    print(f"Provider: {llm_config.provider or '(default)'}")
     print(f"Model: {llm_config.model or '(default)'}")
     print(f"Max tokens: {llm_config.max_tokens}")
     print(f"Temperature: {llm_config.temperature}")
