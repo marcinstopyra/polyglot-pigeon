@@ -24,7 +24,7 @@ from polyglot_pigeon.shared.config import (
     ServiceSettings,
     SingleTenantSettings,
 )
-from polyglot_pigeon.shared.models.configurations import Language, LanguageLevel
+from polyglot_pigeon.shared.models.configurations import LanguageLevel
 from tests.unit_tests.conftest import env_aliases
 
 IMAP_ENV = {
@@ -42,8 +42,8 @@ LLM_ENV = {
 }
 USER_ENV = {
     "USER_TARGET_EMAIL": "learner@example.com",
-    "USER_KNOWN_LANGUAGE": "english",
-    "USER_TARGET_LANGUAGE": "german",
+    "USER_KNOWN_LANGUAGE": "en",
+    "USER_TARGET_LANGUAGE": "de",
     "USER_LANGUAGE_LEVEL": "b1",
 }
 
@@ -339,17 +339,25 @@ class TestSingleTenantSettings:
         set_env(clean_env, IMAP_ENV, SMTP_ENV, LLM_ENV, USER_ENV)
         return SingleTenantSettings()
 
-    def test_language_names_parse_case_insensitively(self, clean_env):
+    def test_language_codes_parse_case_insensitively(self, clean_env):
         set_env(clean_env, IMAP_ENV, SMTP_ENV, LLM_ENV, USER_ENV)
-        clean_env.setenv("USER_TARGET_LANGUAGE", "SPANISH")
+        clean_env.setenv("USER_TARGET_LANGUAGE", "ES")
         clean_env.setenv("USER_LANGUAGE_LEVEL", "C1")
 
         settings = SingleTenantSettings()
 
-        assert settings.user.target_language is Language.SPANISH
+        assert settings.user.target_language == "es"
         assert settings.user.language_level is LanguageLevel.C1
 
-    def test_unknown_language_is_rejected(self, clean_env):
+    def test_region_suffixed_language_code_is_accepted(self, clean_env):
+        set_env(clean_env, IMAP_ENV, SMTP_ENV, LLM_ENV, USER_ENV)
+        clean_env.setenv("USER_TARGET_LANGUAGE", "PT-BR")
+
+        settings = SingleTenantSettings()
+
+        assert settings.user.target_language == "pt-br"
+
+    def test_malformed_language_code_is_rejected(self, clean_env):
         """A bad value is not a missing one: pydantic reports it, unwrapped."""
         set_env(clean_env, IMAP_ENV, SMTP_ENV, LLM_ENV, USER_ENV)
         clean_env.setenv("USER_TARGET_LANGUAGE", "klingon")
@@ -372,8 +380,8 @@ class TestSingleTenantSettings:
         config = settings.to_config()
 
         assert config.target_email.address == "learner@example.com"
-        assert config.language.known is Language.ENGLISH
-        assert config.language.target is Language.GERMAN
+        assert config.language.known == "en"
+        assert config.language.target == "de"
         assert config.language.level is LanguageLevel.B1
 
     def test_to_config_carries_defaults_through(self, settings):

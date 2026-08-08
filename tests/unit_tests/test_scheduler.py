@@ -13,7 +13,6 @@ from polyglot_pigeon.scheduler import (
 )
 from polyglot_pigeon.shared.models.configurations import (
     Config,
-    Language,
     LanguageConfig,
     LanguageLevel,
     LLMConfig,
@@ -106,8 +105,8 @@ class TestEmailScheduler:
                 model="claude-haiku-4-5-20251001",
             ),
             language=LanguageConfig(
-                known=Language.ENGLISH,
-                target=Language.GERMAN,
+                known="en",
+                target="de",
                 level=LanguageLevel.B1,
             ),
             target_email=TargetEmailConfig(

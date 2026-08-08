@@ -263,7 +263,7 @@ extra (§10). Cleaning and chunking are pure text manipulation and live in
 | `texts` (`DYNAMIC` rows) | `controller` | courier, bot |
 | `texts` (`STATIC` rows) | migrations only (authored, seeded with code) | controller, courier, bot |
 | `translations` | `controller` (LLM `translate` job) | courier, bot |
-| `languages` | migrations only (seeded reference data) | all |
+| `languages` | migrations (initial seed) + an admin path, **not yet built** — see §6 | all |
 | `newsletters`, `newsletter_items` | `controller` | courier, bot |
 | `deliveries` | `courier` | — |
 | `users`, `user_languages`, `subscriptions`, `user_newsletter_sources`, `bot_sessions` | `bot` | ingest, controller, courier |
@@ -684,14 +684,31 @@ The distinction is whether the set can grow **without a code change**:
 
 `language_code` uses the ISO 639-1 code as a natural primary key rather than a
 surrogate int: the set is small and stable, and it keeps `es` / `pl` legible in
-queries and logs without a join.
+queries and logs without a join. The column is `String(8)`, not the ISO 639-1
+minimum of two characters — wide enough for a `<language_code>-<country_code>`
+regional variant (`pt-br`) — because that costs nothing before there are rows
+and is painful after, since the code is a natural PK other tables reference.
 
-Note this supersedes the `Language` enum in `models/configurations.py:31` —
-once languages are rows, the table is the source of truth and the Python enum
-must go, or the two will drift.
+**Done (PP-05):** this superseded the old `Language` enum at
+`models/configurations.py:31`; `shared/db/models.py` now defines `Language` as
+the ORM row instead. `LanguageConfig.known` / `.target` (and the equivalent
+`SingleTenantSettings` fields) are plain `language_code` strings, format-
+checked at the settings boundary — a real check against the table's rows
+requires a database session, which doesn't exist yet where those settings are
+built, and lands with PP-09.
 
-`level` and `channel` map to Python enums (`LanguageLevel` already exists at
-`models/configurations.py:41`) and to MySQL `ENUM` columns. Order matters for
+**Still open: migrations are not the only path that may write `languages`.**
+The table in §5 says "migrations (initial seed) + an admin path, not yet
+built." PP-05 shipped the seed migration only; a service must never get
+general write access to this table (that would defeat the "reference data,
+not application state" reasoning above), but requiring a deploy for every new
+language is real friction the table was supposed to remove. An explicit,
+narrow admin path — not a service write — is tracked separately
+([issue #22](https://github.com/marcinstopyra/polyglot-pigeon/issues/22)) and
+still needs its own design pass.
+
+`level` and `channel` map to Python enums (`LanguageLevel` and `Channel`, both
+in `models/configurations.py`) and to MySQL `ENUM` columns. Order matters for
 `level`, so store it in a way that sorts correctly — MySQL `ENUM` sorts by
 declaration order, which is what you want.
 

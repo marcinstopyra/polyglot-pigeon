@@ -19,7 +19,11 @@ from polyglot_pigeon.content.llm.models import LLMMessage, LLMResponse, MessageR
 from polyglot_pigeon.content.prompts import PromptManager
 from polyglot_pigeon.services.courier import EmailSender, InlineImage
 from polyglot_pigeon.services.ingest import chunk_email
-from polyglot_pigeon.shared.models.configurations import Config, LLMConfig
+from polyglot_pigeon.shared.models.configurations import (
+    LANGUAGE_DISPLAY_NAMES,
+    Config,
+    LLMConfig,
+)
 from polyglot_pigeon.shared.models.models import (
     ChunkedSourceEmail,
     CurationResponse,
@@ -359,8 +363,8 @@ class EmailProcessingPipeline(Pipeline):
         system_prompt = prompts.get(
             "curate_articles_system",
             max_articles=str(max_articles),
-            target_language=lang.target.name.title(),
-            known_language=lang.known.name.title(),
+            target_language=LANGUAGE_DISPLAY_NAMES.get(lang.target, lang.target),
+            known_language=LANGUAGE_DISPLAY_NAMES.get(lang.known, lang.known),
             json_schema=json_schema,
         )
         user_prompt = prompts.get(
@@ -442,8 +446,8 @@ class EmailProcessingPipeline(Pipeline):
         prompts: PromptManager,
     ) -> TargetEmailContent:
         lang = self.config.language
-        known_language = lang.known.name.title()
-        target_language = lang.target.name.title()
+        known_language = LANGUAGE_DISPLAY_NAMES.get(lang.known, lang.known)
+        target_language = LANGUAGE_DISPLAY_NAMES.get(lang.target, lang.target)
         level = lang.level.name
 
         json_schema = json.dumps(TargetEmailContent.model_json_schema(), indent=2)
@@ -540,7 +544,7 @@ class EmailProcessingPipeline(Pipeline):
         date_str = now.strftime("%-d %B %Y")
 
         lang = self.config.language
-        target_language = lang.target.name.title()
+        target_language = LANGUAGE_DISPLAY_NAMES.get(lang.target, lang.target)
         title = f"Your {target_language} learning digest"
         subject = f"{title} — {date_str}"
 

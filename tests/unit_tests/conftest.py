@@ -1,6 +1,8 @@
 import os
+from pathlib import Path
 
 import pytest
+from alembic.config import Config as AlembicConfig
 from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
@@ -13,6 +15,8 @@ from polyglot_pigeon.shared.config import (
     IngestSettings,
     SingleTenantSettings,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(scope="session")
@@ -32,6 +36,14 @@ def db_engine(db_settings):
         )
     yield engine
     engine.dispose()
+
+
+@pytest.fixture
+def alembic_config(db_settings) -> AlembicConfig:
+    cfg = AlembicConfig(str(REPO_ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(REPO_ROOT / "migrations"))
+    cfg.set_main_option("sqlalchemy.url", db_settings.url)
+    return cfg
 
 
 def env_aliases(settings_cls: type[BaseSettings]) -> set[str]:
