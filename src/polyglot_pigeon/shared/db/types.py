@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.engine import Dialect
-from sqlalchemy.types import TypeDecorator
+from sqlalchemy.types import DateTime, TypeDecorator, TypeEngine
 
 
 class UtcDateTime(TypeDecorator):
@@ -22,6 +22,14 @@ class UtcDateTime(TypeDecorator):
 
     impl = DATETIME()
     cache_ok = True
+
+    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine:
+        # MySQL is the only production target; the generic fallback exists so
+        # the unit suite can run this decorator against SQLite (PP-28)
+        # without every dialect having to accept a MySQL-specific type name.
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(DATETIME())
+        return dialect.type_descriptor(DateTime())
 
     def process_bind_param(
         self, value: datetime | None, dialect: Dialect

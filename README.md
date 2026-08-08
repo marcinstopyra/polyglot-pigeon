@@ -178,6 +178,11 @@ make db-up    # starts a MySQL 8 container (docker compose up -d db)
 make migrate  # applies migrations (alembic upgrade head)
 ```
 
+`make test` (`poetry run pytest`) runs the unit suite against an in-memory
+SQLite database — no Docker or `make db-up` needed. `tests/integration_tests/`
+covers MySQL- and Alembic-specific behavior instead and does need `make db-up`
+first; run it explicitly with `poetry run pytest tests/integration_tests/`.
+
 Connection settings are read from `DB_HOST`, `DB_PORT`, `DB_USER`,
 `DB_PASSWORD`, `DB_NAME` and `DB_CHARSET` — all optional in development, where
 they default to match `docker-compose.yml`. Set `ENVIRONMENT=production` and

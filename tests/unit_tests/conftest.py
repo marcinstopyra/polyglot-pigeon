@@ -2,48 +2,71 @@ import os
 from pathlib import Path
 
 import pytest
-from alembic.config import Config as AlembicConfig
 from pydantic_settings import BaseSettings
-from sqlalchemy import create_engine
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from polyglot_pigeon.shared.config import (
     BotSettings,
     ControllerSettings,
     CourierSettings,
-    DatabaseSettings,
     IngestSettings,
     SingleTenantSettings,
 )
+from polyglot_pigeon.shared.db import Base, get_session_factory
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.fixture(scope="session")
-def db_settings() -> DatabaseSettings:
-    return DatabaseSettings()
+@pytest.fixture
+def db_engine():
+    """A fresh in-memory SQLite database, isolated per test (PP-28).
 
+    Nothing here needs MySQL: what these tests exercise is dialect-neutral
+    Python (bind/result processors, ORM mapping, query logic). `StaticPool`
+    keeps a single connection alive for the engine's lifetime so schema
+    created via `metadata.create_all` is visible to the test body — plain
+    `sqlite://` hands out a brand-new, empty database per connection.
+    Function-scoped, unlike the old MySQL fixture: spinning up in-memory
+    SQLite is free, so there is no reason to let tests share rows.
 
-@pytest.fixture(scope="session")
-def db_engine(db_settings):
-    engine = create_engine(db_settings.url, pool_pre_ping=True, future=True)
-    try:
-        with engine.connect():
-            pass
-    except OperationalError as exc:
-        pytest.skip(
-            f"MySQL not reachable at {db_settings.host}:{db_settings.port}: {exc}"
-        )
+    Schema comes from `Base.metadata.create_all` — the ORM models directly,
+    not Alembic. Alembic owns schema creation in production and is what
+    `tests/integration_tests/test_migrations.py` verifies (including that its
+    output matches `Base.metadata`); the unit suite doesn't need a second,
+    slower way to prove the same migration scripts work.
+    """
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+
+    @event.listens_for(engine, "connect")
+    def _enable_foreign_keys(dbapi_connection, _):
+        # SQLite ignores FK constraints unless told otherwise per connection.
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
 
 
 @pytest.fixture
-def alembic_config(db_settings) -> AlembicConfig:
-    cfg = AlembicConfig(str(REPO_ROOT / "alembic.ini"))
-    cfg.set_main_option("script_location", str(REPO_ROOT / "migrations"))
-    cfg.set_main_option("sqlalchemy.url", db_settings.url)
-    return cfg
+def session_factory(db_engine) -> sessionmaker[Session]:
+    """The same factory `services/*` will build via `get_session_factory` in
+    production, bound to the SQLite `db_engine` instead of a real MySQL one.
+
+    Tests should reach for this (with `session_scope`, imported from
+    `polyglot_pigeon.shared.db`) rather than `db_engine.begin()`/`.connect()`
+    directly, so the suite exercises the actual session lifecycle the app
+    uses rather than bypassing it.
+    """
+    return get_session_factory(db_engine)
 
 
 def env_aliases(settings_cls: type[BaseSettings]) -> set[str]:

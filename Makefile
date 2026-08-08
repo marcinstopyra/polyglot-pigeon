@@ -1,4 +1,4 @@
-.PHONY: format lint release db-up migrate
+.PHONY: format lint test release db-up migrate
 
 format:
 	poetry run ruff format .
@@ -8,6 +8,12 @@ lint:
 	poetry run ruff check .
 	poetry run ruff format --check .
 	poetry run lint-imports
+
+test:
+	# Unit suite only (see pyproject.toml testpaths) — SQLite in-memory,
+	# no Docker required. tests/integration_tests/ needs `make db-up` and is
+	# run separately: poetry run pytest tests/integration_tests/
+	poetry run pytest
 
 db-up:
 	docker compose up -d db
