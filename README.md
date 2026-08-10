@@ -178,10 +178,15 @@ make db-up    # starts a MySQL 8 container (docker compose up -d db)
 make migrate  # applies migrations (alembic upgrade head)
 ```
 
-`make test` (`poetry run pytest`) runs the unit suite against an in-memory
-SQLite database — no Docker or `make db-up` needed. `tests/integration_tests/`
-covers MySQL- and Alembic-specific behavior instead and does need `make db-up`
-first; run it explicitly with `poetry run pytest tests/integration_tests/`.
+`make test` (`poetry run pytest -m "not mysql"`) runs the unit suite against
+an in-memory SQLite database — no Docker needed, and this is what CI runs on
+every PR. `tests/integration_tests/` covers MySQL- and Alembic-specific
+behavior instead — charset handling, migrations, locking — and needs a live
+database: `make test-integration` starts it, creates a separate `polyglot_test`
+database (so a careless run can never touch a developer's local `polyglot`
+data), migrates it, and runs the suite against it. Unlike the unit suite, an
+unreachable database here is a test failure, not a skip — opt out explicitly
+with `poetry run pytest -m "not mysql"` if you mean to.
 
 Connection settings are read from `DB_HOST`, `DB_PORT`, `DB_USER`,
 `DB_PASSWORD`, `DB_NAME` and `DB_CHARSET` — all optional in development, where

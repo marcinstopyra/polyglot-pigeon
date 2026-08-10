@@ -22,6 +22,10 @@ services:
       MYSQL_USER: ${DB_USER:-polyglot}
       MYSQL_PASSWORD: ${DB_PASSWORD:-polyglot}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-polyglot}
+    # Mirrored in .github/workflows/ci.yml's integration-test job (a plain
+    # `docker run`, not a services: container, precisely so it can carry
+    # these same flags) — keep the two in step or the charset tests pass in
+    # one place and fail in the other.
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci

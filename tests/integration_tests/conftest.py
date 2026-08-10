@@ -21,19 +21,24 @@ def db_engine(db_settings):
 
     This suite exists precisely to test what the unit suite (PP-28, SQLite)
     cannot: MySQL-specific behaviour like charset handling, native `ENUM`
-    ordering, and Alembic migrations against the real dialect. Skipping when
-    unreachable is deliberate here — unlike the unit suite, this one is meant
-    to be run locally against `make db-up` rather than in every environment;
-    PP-29 wires it into CI.
+    ordering, and Alembic migrations against the real dialect. Unlike the unit
+    suite, this one is not meant to run everywhere — but when it does run, an
+    unreachable database is a failure, not an ambient skip: a skip here would
+    recreate the exact silent-opt-out bug PP-28 was written to eliminate.
+    Opting out is `pytest -m "not mysql"`, a deliberate choice, never this
+    fixture's default.
     """
     engine = create_engine(db_settings.url, pool_pre_ping=True, future=True)
     try:
         with engine.connect():
             pass
     except OperationalError as exc:
-        pytest.skip(
-            f"MySQL not reachable at {db_settings.host}:{db_settings.port}: {exc}"
-        )
+        raise RuntimeError(
+            f"MySQL not reachable at {db_settings.host}:{db_settings.port}. "
+            "The integration suite requires a running database — see "
+            "`make test-integration` / `make db-up` — or run "
+            '`pytest -m "not mysql"` to opt out explicitly.'
+        ) from exc
     yield engine
     engine.dispose()
 

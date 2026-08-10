@@ -11,6 +11,8 @@ from sqlalchemy.exc import IntegrityError
 
 from polyglot_pigeon.shared.db.models import Language
 
+pytestmark = pytest.mark.mysql
+
 EXPECTED_CODES = {"en", "de", "ru", "it", "es", "tr", "pl"}
 
 
@@ -32,7 +34,9 @@ class TestLanguagesTable:
         assert pk["constrained_columns"] == ["code"]
         assert isinstance(columns["code"]["type"], sa.String)
         assert columns["code"]["type"].length == 8
-        assert columns["code"]["autoincrement"] is not True
+        # Reflection only sets this key when a column *is* auto-increment;
+        # absent means "not auto-increment," same as an explicit False.
+        assert columns["code"].get("autoincrement") is not True
 
     def test_seed_migration_inserts_the_initially_supported_languages(self, db_engine):
         with db_engine.connect() as conn:

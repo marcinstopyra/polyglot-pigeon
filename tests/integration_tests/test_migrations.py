@@ -8,6 +8,8 @@ from alembic.operations import ops
 from polyglot_pigeon.shared.db.base import Base
 from polyglot_pigeon.shared.db.types import UtcDateTime
 
+pytestmark = pytest.mark.mysql
+
 
 @pytest.fixture(autouse=True)
 def _reset_schema(db_engine, alembic_config):

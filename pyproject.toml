@@ -67,7 +67,11 @@ pythonpath = [
     "src",
 ]
 testpaths = [
-    "tests/unit_tests/"
+    "tests/unit_tests/",
+    "tests/integration_tests/",
+]
+markers = [
+    "mysql: requires a live MySQL connection (see tests/integration_tests/conftest.py); excluded with -m \"not mysql\"",
 ]
 log_file_level = "DEBUG"
 
